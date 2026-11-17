@@ -205,6 +205,44 @@ class MonitorTest(unittest.TestCase):
     def test_raw_prints_the_log_lines(self):
         self.assertEqual(self.run_monitor("--raw"), self.log.read_text())
 
+    def test_colors_mark_each_frame_field(self):
+        """Every field run (split at the 16 byte rows of the dump) comes in its color."""
+        text = self.run_monitor("--color", "always")
+        c, end = sdlp_link.COLORS, sdlp_link.RESET
+        self.assertIn("Legend:", text)
+
+        def runs(data, regions):
+            for start, stop, kind in regions:
+                for row in range(start - start % 16, stop, 16):
+                    lo, hi = max(start, row), min(stop, row + 16)
+                    if lo < hi:
+                        yield kind, data[lo:hi]
+
+        size = len(self.frame)
+        regions = [(0, 5, "prihdr"), (5, 7, "spi"), (7, 19, "iv"), (19, size - 16, "data"), (size - 16, size, "mac")]
+        self.assertEqual(sdlp_link.tc_frame_regions(size), regions)
+        for kind, part in [*runs(self.frame, regions), *runs(self.spp, sdlp_link.spp_regions(len(self.spp)))]:
+            with self.subTest(kind=kind, part=part.hex()):
+                self.assertIn(f"{c[kind]}{part.hex(' ')}{end}", text)
+        self.assertEqual(sdlp_link.spp_regions(len(self.spp))[1][2], "data")
+        self.assertEqual(c["data"], "\033[97m")  # the data field is white
+        self.assertIn(f"{c['fail']}FAIL", text)
+
+    def test_no_color_unless_on_a_terminal_or_asked(self):
+        self.assertNotIn("\033", self.run_monitor())  # StringIO is not a terminal
+        self.assertNotIn("\033", self.run_monitor("--color", "never"))
+        self.assertNotIn("\033", self.run_monitor("--color", "always", "--raw"))
+
+    def test_cut_frame_still_shows_its_mac(self):
+        text = self.run_monitor("--dir", "TM", "--hex-limit", "32")
+        self.assertIn(f"{b.TM_FRAME_SIZE - 48} bytes not shown", text)
+        self.assertIn(f"{b.TM_FRAME_SIZE - 16:04x}  " + "00 " * 15 + "00", text)  # the 16 MAC bytes
+
+    def test_short_frame_is_shown_whole(self):
+        lines = sdlp_link._hexdump(self.frame, 32, tail=16)
+        self.assertFalse(any("not shown" in line or "more bytes" in line for line in lines))
+        self.assertEqual(len(lines), (len(self.frame) + 15) // 16)
+
     def test_follow_sees_new_lines_and_survives_truncation(self):
         seen = []
         gen = sdlp_link._follow(str(self.log), from_start=False, poll=0.02)
