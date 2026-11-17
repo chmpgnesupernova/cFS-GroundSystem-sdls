@@ -12,10 +12,12 @@ import os
 import pathlib
 import socket
 import sys
+import tempfile
 import threading
 import time
 import types
 import unittest
+import unittest.mock
 
 import sdls_binding as b
 from sat_reference import SatTmFramer, make_spp, sat_tc_extract_packet
@@ -198,6 +200,142 @@ class RoutingServiceTest(unittest.TestCase):
         self._wait(lambda: len(self.publisher.sent) == 1)
         self.assertEqual(len(self.signal.emitted), 1)  # the bad datagram registered no spacecraft
         self.assertEqual(read_log(self.log)[0]["err"], "TM_SDLP_MY_INVALID_LENGTH")
+
+
+# --- TC target IP setting (network-config.ini) -----------------------------------------------
+
+import network_config  # noqa: E402 - Subsystems/cmdGui is on sys.path (above)
+
+
+@contextlib.contextmanager
+def config_file():
+    """A private network-config.ini for the test (GS_NETWORK_CONFIG)."""
+    saved = os.environ.get("GS_NETWORK_CONFIG")
+    with tempfile.TemporaryDirectory() as tmp:
+        path = pathlib.Path(tmp) / "sub" / "network-config.ini"
+        os.environ["GS_NETWORK_CONFIG"] = str(path)
+        try:
+            yield path
+        finally:
+            if saved is None:
+                os.environ.pop("GS_NETWORK_CONFIG", None)
+            else:
+                os.environ["GS_NETWORK_CONFIG"] = saved
+
+
+class NetworkConfigTest(unittest.TestCase):
+    def setUp(self):
+        stack = contextlib.ExitStack()
+        self.addCleanup(stack.close)
+        self.path = stack.enter_context(config_file())
+
+    def test_nothing_saved_yet(self):
+        self.assertIsNone(network_config.load_tc_target_ip())
+
+    def test_save_then_load_on_the_next_start(self):
+        self.assertEqual(network_config.save_tc_target_ip(" 192.168.0.20 "), self.path)
+        self.assertEqual(network_config.load_tc_target_ip(), "192.168.0.20")
+        self.assertIn("target_ip = 192.168.0.20", self.path.read_text())
+        self.assertEqual([p.name for p in self.path.parent.iterdir()], ["network-config.ini"])  # no temp left
+
+    def test_invalid_addresses_are_refused_and_nothing_is_written(self):
+        network_config.save_tc_target_ip("10.0.0.1")
+        for bad in ("", "300.1.1.1", "10.0.0", "localhost", "::1", "10.0.0.1:1234"):
+            with self.subTest(bad=bad):
+                with self.assertRaises(ValueError):
+                    network_config.save_tc_target_ip(bad)
+        self.assertEqual(network_config.load_tc_target_ip(), "10.0.0.1")
+
+    def test_a_hand_edited_bad_value_is_ignored(self):
+        self.path.parent.mkdir(parents=True)
+        self.path.write_text("[tc]\ntarget_ip = not-an-ip\n")
+        self.assertIsNone(network_config.load_tc_target_ip())
+        self.path.write_text("this is not an ini file")
+        self.assertIsNone(network_config.load_tc_target_ip())
+
+    def test_other_settings_in_the_file_are_kept(self):
+        self.path.parent.mkdir(parents=True)
+        self.path.write_text("[tm]\nnote = keep me\n\n[tc]\ntarget_ip = 1.2.3.4\n")
+        network_config.save_tc_target_ip("5.6.7.8")
+        text = self.path.read_text()
+        self.assertIn("note = keep me", text)
+        self.assertEqual(network_config.load_tc_target_ip(), "5.6.7.8")
+
+    def test_default_location_is_next_to_groundsystem(self):
+        os.environ.pop("GS_NETWORK_CONFIG")
+        self.assertEqual(network_config.config_path(), REPO / "network-config.ini")
+
+
+def _pyqt5_available():
+    try:
+        import PyQt5.QtWidgets  # noqa: F401, PLC0415
+        return True
+    except ImportError:
+        return False
+
+
+@unittest.skipUnless(_pyqt5_available(), "PyQt5 not installed")
+class CommandSystemTargetIpTest(unittest.TestCase):
+    """The real Command System window, without a display (Qt offscreen platform)."""
+
+    @classmethod
+    def setUpClass(cls):
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from PyQt5.QtWidgets import QApplication, QTableWidgetItem  # noqa: PLC0415
+
+        cls.app = QApplication.instance() or QApplication([])
+        cls.QTableWidgetItem = QTableWidgetItem
+        import CommandSystem  # noqa: PLC0415
+
+        cls.module = CommandSystem
+
+    def setUp(self):
+        stack = contextlib.ExitStack()
+        self.addCleanup(stack.close)
+        self.path = stack.enter_context(config_file())
+        self.warnings = []
+        stack.enter_context(unittest.mock.patch.object(
+            self.module.QMessageBox, "warning", lambda *args: self.warnings.append(args)))
+        self.window = self.module.CommandSystem()
+        self.addCleanup(self.window.deleteLater)
+        tbl = self.window.tbl_cmd_sys
+        for row, addr in enumerate(("127.0.0.1", "127.0.0.1", "10.9.9.9")):
+            tbl.insertRow(row)
+            for col, text in enumerate((f"page{row}", "0x1880", addr)):
+                tbl.setItem(row, col, self.QTableWidgetItem(text))
+
+    def addresses(self):
+        tbl = self.window.tbl_cmd_sys
+        return [tbl.item(row, 2).text() for row in range(tbl.rowCount())]
+
+    def test_apply_updates_every_page_and_saves(self):
+        self.window.edit_target_ip.setText("192.168.1.50")
+        self.window.btn_target_ip.click()
+        self.assertEqual(self.addresses(), ["192.168.1.50"] * 3)
+        self.assertEqual(network_config.load_tc_target_ip(), "192.168.1.50")
+        self.assertEqual(self.warnings, [])
+
+    def test_invalid_ip_warns_and_changes_nothing(self):
+        self.window.load_saved_target_ip("127.0.0.1")
+        self.window.edit_target_ip.setText("192.168.1")
+        self.window.apply_target_ip()
+        self.assertEqual(len(self.warnings), 1)
+        self.assertEqual(self.addresses(), ["127.0.0.1", "127.0.0.1", "10.9.9.9"])
+        self.assertEqual(self.window.edit_target_ip.text(), "127.0.0.1")
+        self.assertFalse(self.path.exists())
+
+    def test_saved_ip_is_used_at_start(self):
+        network_config.save_tc_target_ip("172.16.0.7")
+        self.assertEqual(self.window.load_saved_target_ip("127.0.0.1"), "172.16.0.7")
+        self.assertEqual(self.addresses(), ["172.16.0.7"] * 3)
+
+    def test_without_a_saved_ip_the_file_addresses_stay(self):
+        self.assertEqual(self.window.load_saved_target_ip("127.0.0.1"), "127.0.0.1")
+        self.assertEqual(self.addresses(), ["127.0.0.1", "127.0.0.1", "10.9.9.9"])
+
+    def test_enter_applies_instead_of_closing(self):
+        self.assertTrue(self.window.btn_target_ip.isDefault())
+        self.assertFalse(any(b.isDefault() or b.autoDefault() for b in self.window.button_box.buttons()))
 
 
 if __name__ == "__main__":

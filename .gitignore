@@ -7,3 +7,6 @@ __pycache__/
 *.pyc
 
 .vscode/
+
+# Network settings written by the Command System (TC target IP)
+network-config.ini

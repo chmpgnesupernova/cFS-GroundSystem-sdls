@@ -26,9 +26,11 @@ import subprocess
 import sys
 from pathlib import Path
 
-from PyQt5.QtWidgets import (QApplication, QDialog, QHeaderView, QPushButton,
+from PyQt5.QtWidgets import (QApplication, QDialog, QHeaderView, QLabel,
+                             QLineEdit, QMessageBox, QPushButton,
                              QTableWidgetItem)
 
+import network_config
 from MiniCmdUtil import MiniCmdUtil
 from UiCommandsystemdialog import UiCommandsystemdialog
 
@@ -46,6 +48,79 @@ class CommandSystem(QDialog, UiCommandsystemdialog):
         self.setupUi(self)
         self.move(800, 100)
         self.mcu = None
+        self.target_ip = None
+        self._add_target_ip_controls()
+
+    #
+    # TC target IP: one address for every command sent from this window and the
+    # command pages it opens. Changed here, saved to network-config.ini, and read
+    # back the next time the Command System starts.
+    #
+    def _add_target_ip_controls(self):
+        layout = self.horizontal_layout_2
+        layout.removeItem(layout.itemAt(0))  # the fixed spacer left of "Available Pages"
+        self.layout_widget_3.setGeometry(30, 60, 701, 33)  # line up with the table
+
+        self.lbl_target_ip = QLabel("TC Target IP:", self.layout_widget_3)
+        self.edit_target_ip = QLineEdit(self.layout_widget_3)
+        self.edit_target_ip.setMaximumWidth(140)
+        self.edit_target_ip.setPlaceholderText("e.g. 192.168.0.20")
+        self.edit_target_ip.setToolTip(
+            "IPv4 address commands are sent to (saved to "
+            f"{network_config.config_path()})")
+        self.btn_target_ip = QPushButton("Apply", self.layout_widget_3)
+        self.btn_target_ip.clicked.connect(self.apply_target_ip)
+        for pos, widget in enumerate(
+                (self.lbl_target_ip, self.edit_target_ip, self.btn_target_ip)):
+            layout.insertWidget(pos, widget)
+
+        # Enter in the IP field applies it (and must not hit Close).
+        for button in self.button_box.buttons():
+            button.setAutoDefault(False)
+            button.setDefault(False)
+        self.btn_target_ip.setDefault(True)
+
+    def set_target_ip(self, ip):
+        """Shows ip and uses it for every command page row (and its quick button)."""
+        self.target_ip = ip
+        self.edit_target_ip.setText(ip)
+        for row in range(self.tbl_cmd_sys.rowCount()):
+            item = self.tbl_cmd_sys.item(row, 2)
+            if item is not None:
+                item.setText(ip)
+
+    def load_saved_target_ip(self, file_default=None):
+        """At start: the saved IP (network-config.ini) wins over command-pages.txt.
+        Without one, the table keeps the file's addresses and the field shows
+        file_default (the first page's address)."""
+        saved_ip = network_config.load_tc_target_ip()
+        if saved_ip:
+            self.set_target_ip(saved_ip)
+            print(f"TC target IP {saved_ip} (from {network_config.config_path()})")
+        elif file_default:
+            self.target_ip = file_default
+            self.edit_target_ip.setText(file_default)
+        return self.target_ip
+
+    def apply_target_ip(self):
+        text = self.edit_target_ip.text().strip()
+        try:
+            ip = network_config.validate_ip(text)
+        except ValueError:
+            QMessageBox.warning(self, "TC Target IP",
+                                f"Not a valid IPv4 address: '{text}'")
+            self.edit_target_ip.setText(self.target_ip or "")
+            return
+        self.set_target_ip(ip)
+        try:
+            path = network_config.save_tc_target_ip(ip)
+        except OSError as exc:
+            QMessageBox.warning(
+                self, "TC Target IP",
+                f"Using {ip} for now, but it could not be saved to "
+                f"{network_config.config_path()}:\n{exc}")
+            return
+        print(f"TC target IP set to {ip} (saved to {path})")
 
     #
     # Processes 'Display Page' button
@@ -217,6 +292,13 @@ if __name__ == '__main__':
             quick_indices.append(quick_idx)
     tbl.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
     tbl.horizontalHeader().setStretchLastSection(True)
+
+    #
+    # TC target IP saved last time (network-config.ini) wins over the addresses
+    # in command-pages.txt. Without a saved one the file's addresses stay as they
+    # are, and the field shows the first one.
+    #
+    command.load_saved_target_ip(cmdPageAddress[0] if cmdPageAddress else None)
 
     #
     # Display the page
