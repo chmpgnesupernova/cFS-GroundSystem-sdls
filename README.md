@@ -14,6 +14,8 @@ raw 로그를 보고싶다면 `python3 sdlp_link.py --raw` 옵션 사용.
 
 GroundSystem 에서 Target IP 를 변경 가능
 
+handcraft 기능 추가: 사용자 정의 SPP 메시지 제작 및 전송 가능.
+
 변경한 결과는 network-config.ini 에 저장
 
 GUI 가 아닌 cmdUtil 사용할 경우 프레이밍 동작 안하니 주의.
