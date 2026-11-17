@@ -202,6 +202,16 @@ class MonitorTest(unittest.TestCase):
         self.assertNotIn("0000  ", self.run_monitor("--no-hex"))
         self.assertNotIn("more bytes", self.run_monitor("--hex-limit", "0"))
 
+    def test_a_blank_line_follows_each_message(self):
+        for args in ((), ("--no-hex",), ("--color", "always")):
+            with self.subTest(args=args):
+                blocks = self.run_monitor(*args).split("\n\n")
+                self.assertEqual(blocks[-1], "")  # the output ends with the blank line
+                messages = [blk for blk in blocks[:-1] if not blk.startswith("Legend:")]
+                self.assertEqual(len(messages), 3)  # TC OK, TM OK, TM FAIL
+                for blk in messages:
+                    self.assertIn(" pid ", blk.splitlines()[0])  # each block starts at its head line
+
     def test_raw_prints_the_log_lines(self):
         self.assertEqual(self.run_monitor("--raw"), self.log.read_text())
 

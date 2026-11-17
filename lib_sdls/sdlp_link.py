@@ -493,7 +493,7 @@ def monitor(argv=None, out=sys.stdout):
         print(f"sdlp_link monitor: following {args.log} (Ctrl+C to stop)", file=out, flush=True)
         lines = _follow(args.log, from_start=args.all)
     if color:
-        print(legend(_Paint(True)), file=out, flush=True)
+        print(legend(_Paint(True)) + "\n", file=out, flush=True)
 
     try:
         for line in lines:
@@ -502,8 +502,10 @@ def monitor(argv=None, out=sys.stdout):
                 continue
             if (args.dir and entry["dir"] != args.dir) or (args.fail and entry["result"] == "OK"):
                 continue
-            text = line.rstrip("\n") if args.raw else format_entry(entry, not args.no_hex, args.hex_limit, color)
-            print(text, file=out, flush=True)
+            if args.raw:  # exactly the log lines
+                print(line.rstrip("\n"), file=out, flush=True)
+            else:  # one blank line after each message keeps them apart
+                print(format_entry(entry, not args.no_hex, args.hex_limit, color) + "\n", file=out, flush=True)
     except KeyboardInterrupt:
         pass
     return 0
