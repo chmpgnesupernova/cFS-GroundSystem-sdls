@@ -36,6 +36,7 @@ from UiCommandsystemdialog import UiCommandsystemdialog
 
 # ../cFS/tools/cFS-GroundSystem/Subsystems/cmdGui/
 ROOTDIR = Path(sys.argv[0]).resolve().parent
+HANDCRAFT_DEFAULT_PORT = 1234  # satellite TC port, when command-pages.txt has none
 
 
 class CommandSystem(QDialog, UiCommandsystemdialog):
@@ -70,8 +71,14 @@ class CommandSystem(QDialog, UiCommandsystemdialog):
             f"{network_config.config_path()})")
         self.btn_target_ip = QPushButton("Apply", self.layout_widget_3)
         self.btn_target_ip.clicked.connect(self.apply_target_ip)
+        self.btn_handcraft = QPushButton("Handcraft TC", self.layout_widget_3)
+        self.btn_handcraft.setToolTip(
+            "Type every SPP field in hex and send it to the TC target IP")
+        self.btn_handcraft.setAutoDefault(False)
+        self.btn_handcraft.clicked.connect(self.open_handcraft)
         for pos, widget in enumerate(
-                (self.lbl_target_ip, self.edit_target_ip, self.btn_target_ip)):
+                (self.lbl_target_ip, self.edit_target_ip, self.btn_target_ip,
+                 self.btn_handcraft)):
             layout.insertWidget(pos, widget)
 
         # Enter in the IP field applies it (and must not hit Close).
@@ -79,6 +86,19 @@ class CommandSystem(QDialog, UiCommandsystemdialog):
             button.setAutoDefault(False)
             button.setDefault(False)
         self.btn_target_ip.setDefault(True)
+
+    #
+    # 'Handcraft TC' button: a page where every SPP field is typed in hex
+    #
+    def open_handcraft(self):
+        host = self.target_ip or "127.0.0.1"
+        ports = globals().get("cmdPagePort") or []
+        port = ports[0] if ports else HANDCRAFT_DEFAULT_PORT
+        script = Path(__file__).resolve().parent / "HandcraftCommand.py"
+        cmd_args = [sys.executable or "python3", str(script),
+                    f"--host={host}", f"--port={port}"]
+        print(f"Handcraft TC -> {host}:{port}")
+        return subprocess.Popen(cmd_args)
 
     def set_target_ip(self, ip):
         """Shows ip and uses it for every command page row (and its quick button)."""
