@@ -7,7 +7,7 @@
                        yellow, Data white, MAC magenta, Space Packet header green
 
 Frame layout depends on the build (CMake SDLS_SDLP_ONLY), see LAYOUTS:
-    SDLP-only  TC [PriHdr 5][SPP]                    TM [PriHdr 6][SecHdr 14][SPPs + idle]
+    SDLP-only  TC [PriHdr 5][SPP]                    TM [PriHdr 6][SPPs + idle]
     SDLS       TC [PriHdr 5][SecHdr 14][SPP][MAC 16]  TM [PriHdr 6][SecHdr 14][SPPs + idle][MAC 16]
 
 Every call writes one line to the log file with the raw bytes before and after processing.
@@ -52,11 +52,10 @@ TRAILER_LENGTH = 16  # MAC
 SPP_HDR_LENGTH = 6
 
 # Security Header / Trailer lengths per build mode (TC_SDLP_MY_SDLS_HDR/TRL_LENGTH,
-# TM_SDLP_MY_SDLS_HDR/TRL_LENGTH). SDLP-only follows the SDLP-only satellite: a TC frame
-# is the Primary Header and the packet only; a TM frame keeps its Security Header (not
-# checked) and has no MAC.
+# TM_SDLP_MY_SDLS_HDR/TRL_LENGTH). SDLP-only follows the SDLP-only satellite: TC and TM
+# frames are the Primary Header and the packets only.
 LAYOUTS = {
-    MODE_SDLP_ONLY: {"tc_sechdr": 0, "tc_trailer": 0, "tm_sechdr": SECHDR_LENGTH, "tm_trailer": 0},
+    MODE_SDLP_ONLY: {"tc_sechdr": 0, "tc_trailer": 0, "tm_sechdr": 0, "tm_trailer": 0},
     MODE_SDLS: {"tc_sechdr": SECHDR_LENGTH, "tc_trailer": TRAILER_LENGTH,
                 "tm_sechdr": SECHDR_LENGTH, "tm_trailer": TRAILER_LENGTH},
 }

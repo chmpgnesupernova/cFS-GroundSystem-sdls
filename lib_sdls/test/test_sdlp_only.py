@@ -1,9 +1,8 @@
 """SDLP-only build (CMake SDLS_SDLP_ONLY=ON): frames only, laid out like the SDLP-only
 satellite (Heeseung1123/cFS ci_lab and to_lab):
 
-    TC  [Primary Header 5][Space Packet]                          no Security Header, no MAC
-    TM  [Primary Header 6][Security Header 14][packets + idle]    Security Header zero and
-                                                                  not checked, no MAC
+    TC  [Primary Header 5][Space Packet]        no Security Header, no MAC
+    TM  [Primary Header 6][packets + idle]      no Security Header, no MAC
 
 No SA DB is needed, and the satellite reference (an SDLP-only satellite) must exchange
 frames with the library byte for byte.
@@ -109,8 +108,20 @@ class SdlpOnlyTmTest(unittest.TestCase):
     def test_every_packet_comes_out_without_an_sa_db(self):
         packets = [make_spp(0x100 + i, bytes([i]) * (5 + 40 * i)) for i in range(6)]
         (frame,) = tm_frame(packets)
-        self.assertEqual(frame[b.TMTF_PRIHDR_LENGTH : TM_DATA], bytes(b.SECHDR_LENGTH))
+        self.assertEqual(TM_DATA, b.TMTF_PRIHDR_LENGTH)
+        self.assertEqual(frame[TM_DATA : TM_DATA + len(packets[0])], packets[0])  # right after the Primary Header
         self.assertEqual(self.sdls.tm_extract(frame), (0, packets))
+
+    def test_satellite_frame_byte_for_byte(self):
+        """A frame as the SDLP-only satellite TO (to_lab, HDR 0 / TRL 0) sends it."""
+        packet = bytes.fromhex("0880c0000009") + bytes(range(1, 11))
+        frame = bytearray(b.TM_FRAME_SIZE)
+        frame[0:6] = bytes.fromhex("003201001800")  # SCID 0x003, VCID 1, MC 1, packet service, FHP 0
+        frame[6 : 6 + len(packet)] = packet
+        idle = 6 + len(packet)
+        frame[idle : idle + 3] = b"\x07\xff\xc0"
+        frame[idle + 4 : idle + 6] = (b.TM_FRAME_SIZE - idle - 7).to_bytes(2, "big")
+        self.assertEqual(self.sdls.tm_extract(bytes(frame)), (0, [packet]))
 
     def test_idle_packet_runs_to_the_frame_end(self):
         """No MAC: the satellite fills the data field up to byte 1786 with the idle packet."""
@@ -133,13 +144,6 @@ class SdlpOnlyTmTest(unittest.TestCase):
         self.assertGreater(len(frames), 1)
         out = [p for frame in frames for p in self.sdls.tm_extract_packets(frame)]
         self.assertEqual(out, packets)
-
-    def test_security_header_is_not_checked(self):
-        """Dummy field: whatever it holds, the frame is accepted and the SPI reported."""
-        packet = make_spp(0x101, b"x")
-        frame = bytearray(tm_frame([packet])[0])
-        frame[b.TMTF_PRIHDR_LENGTH : TM_DATA] = bytes([0x12, 0x34]) + b"\xEE" * 12
-        self.assertEqual(self.sdls.tm_extract(bytes(frame)), (0x1234, [packet]))
 
     def test_same_frame_twice_is_fine(self):
         """No ARSN in SDLP-only: a repeated frame is just a repeated frame."""

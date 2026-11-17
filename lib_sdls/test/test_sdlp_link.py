@@ -265,7 +265,7 @@ class MonitorTest(unittest.TestCase):
         self.assertEqual(tc_only, [(0, 5, "prihdr"), (5, 20, "data")])
         self.assertEqual([k for *_, k in tc_sdls], ["prihdr", "spi", "iv", "data", "mac"])
         tm_only = sdlp_link.tm_frame_regions(b.TM_FRAME_SIZE, "SDLP-only")
-        self.assertEqual(tm_only, [(0, 6, "prihdr"), (6, 8, "spi"), (8, 20, "iv"), (20, b.TM_FRAME_SIZE, "data")])
+        self.assertEqual(tm_only, [(0, 6, "prihdr"), (6, b.TM_FRAME_SIZE, "data")])
         self.assertEqual(sdlp_link.tm_frame_regions(b.TM_FRAME_SIZE, "SDLS")[-1], (1770, 1786, "mac"))
         frame = bytes.fromhex("2003000c00" "1882c000000100a4")
         self.assertIn("no Security Header no MAC", sdlp_link.decode_tc_frame(frame, mode="SDLP-only"))

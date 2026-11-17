@@ -215,7 +215,7 @@ class SatTmFramer:
     spi: SA written into every Security Header. SPI_SA10 (EP PDUs) zero fills the IV and
     the MAC; any other SA sends first_iv, first_iv + 1, ... (one per frame, like the
     satellite SA11 send side), and with key set encrypts the data field (AES-256-GCM).
-    sdlp_only: an SDLP-only satellite (to_lab): Security Header zero filled, no Trailer.
+    sdlp_only: an SDLP-only satellite (to_lab): no Security Header and no Trailer.
     """
 
     def __init__(
@@ -241,7 +241,7 @@ class SatTmFramer:
         self.spi = spi
         self.next_iv = first_iv
         self.key = key
-        self.sdlp_only = sdlp_only  # SDLP-only satellite: Security Header zero, no Trailer
+        self.sdlp_only = sdlp_only  # SDLP-only satellite: no Security Header, no Trailer
 
         # TMTF_MY_WR_TF_VERSION / SCID / VCID / SEGLENGTHID / FIRSTHDRPTR(0)
         self.frame[0] = ((tfvn & 0x03) << 6) | ((scid >> 4) & 0x3F)
@@ -269,9 +269,7 @@ class SatTmFramer:
 
     def _write_sechdr(self):
         if self.sdlp_only:
-            start = b.TMTF_PRIHDR_LENGTH
-            self.frame[start : start + b.SECHDR_LENGTH] = bytes(b.SECHDR_LENGTH)
-            return 0
+            return 0  # no Security Header
         if self.spi == b.SPI_SA10:
             iv = 0
         else:

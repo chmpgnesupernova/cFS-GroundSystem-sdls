@@ -70,11 +70,10 @@ int32_t TC_SDLP_myInit(void);
 
 /* Build mode, fixed at compile time (CMake SDLS_SDLP_ONLY):
  *   SDLP_MY_MODE_SDLP_ONLY : frames only, laid out like the SDLP-only satellite (ci_lab /
- *                            to_lab): a TC frame has no Security Header and no Trailer;
- *                            a TM frame keeps its 14 B Security Header (SPI 2 + IV 12,
- *                            not checked) and has no Trailer. No SA DB, no crypto
- *                            library. TC_SDLP_myBuildFrame ignores spi and
- *                            TM_SDLP_myExtractPacket reports the SPI as written.
+ *                            to_lab): TC and TM frames have no Security Header and no
+ *                            Trailer, only the Primary Header and the packets. No SA DB,
+ *                            no crypto library. TC_SDLP_myBuildFrame ignores spi and
+ *                            TM_SDLP_myExtractPacket reports SPI 0.
  *   SDLP_MY_MODE_SDLS      : full SDLS (sdls/sdls_my.h): SA DB, AES-GCM, key exchange;
  *                            Security Header 14 B and Trailer 16 B on TC and TM.
  * The two layouts differ, so both sides must be built in the same mode. */
