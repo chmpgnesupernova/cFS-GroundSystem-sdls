@@ -3,6 +3,8 @@
     MiniCmdUtil.py     frame   = sdlp_link.encapsulate_tc(spp)           before sendto()
     RoutingService.py  packets = sdlp_link.decapsulate_tm(frame, host)   after recvfrom()
     monitor            python3 lib_sdls/sdlp_link.py [options]          (see --help)
+                       frame fields in color on a terminal: Primary Header cyan, SPI/IV
+                       yellow, Data white, MAC magenta, Space Packet header green
 
 Every call writes one line to the log file with the raw bytes before and after processing.
 The monitor follows that file and prints each line decoded. The GUI is not involved:
@@ -243,6 +245,62 @@ def _unhex(value):
     return b"" if value in (None, "", "-") else bytes.fromhex(value)
 
 
+# --- colors (monitor) ----------------------------------------------------------------------
+# ANSI colors, one per frame field. Used only when the monitor writes to a terminal
+# (--color auto) or when asked (--color always); never in the log file itself.
+
+RESET = "\033[0m"
+COLORS = {
+    "prihdr": "\033[1;36m",  # Primary Header      bold cyan
+    "spi": "\033[1;33m",  # Security Header SPI    bold yellow
+    "iv": "\033[33m",  # Security Header IV        yellow
+    "data": "\033[97m",  # Data field              bright white
+    "mac": "\033[1;35m",  # Security Trailer (MAC)  bold magenta
+    "spphdr": "\033[32m",  # Space Packet header   green
+    "offset": "\033[2m",  # hex dump offsets       dim
+    "ok": "\033[1;32m",
+    "fail": "\033[1;31m",
+}
+LEGEND = (("prihdr", "Primary Header"), ("spi", "SPI"), ("iv", "IV"), ("data", "Data"),
+          ("mac", "MAC"), ("spphdr", "SPP Header"))
+
+
+class _Paint:
+    """paint(kind, text): text wrapped in the color for kind, or unchanged when off."""
+
+    def __init__(self, on):
+        self.on = on
+
+    def __call__(self, kind, text):
+        return f"{COLORS[kind]}{text}{RESET}" if self.on and text else text
+
+
+def legend(paint):
+    return "Legend: " + "  ".join(paint(kind, f"[{name}]") for kind, name in LEGEND)
+
+
+def _frame_regions(size, prihdr_len):
+    """(start, end, kind) for [PriHdr][SPI 2][IV 12][Data][MAC 16]."""
+    sec_end = prihdr_len + SECHDR_LENGTH
+    if size < sec_end + TRAILER_LENGTH:
+        return [(0, size, "data")]
+    return [(0, prihdr_len, "prihdr"), (prihdr_len, prihdr_len + 2, "spi"), (prihdr_len + 2, sec_end, "iv"),
+            (sec_end, size - TRAILER_LENGTH, "data"), (size - TRAILER_LENGTH, size, "mac")]
+
+
+def tc_frame_regions(size):
+    return _frame_regions(size, TC_PRIHDR_LENGTH)
+
+
+def tm_frame_regions(size):
+    return _frame_regions(size, TM_PRIHDR_LENGTH)
+
+
+def spp_regions(size):
+    """[SPP header 6][Data]."""
+    return [(0, min(SPP_HDR_LENGTH, size), "spphdr"), (SPP_HDR_LENGTH, size, "data")]
+
+
 # --- decoders (for the monitor) -------------------------------------------------------------
 
 
@@ -257,73 +315,111 @@ def decode_spp(data):
             f"len {int.from_bytes(data[4:6], 'big') + 7}")
 
 
-def _sechdr_note(sec, trailer):
+def _sechdr_parts(sec, trailer):
     spi = int.from_bytes(sec[0:2], "big")
     iv = int.from_bytes(sec[2:14], "big")
     zero = "zero" if not any(trailer) else "non-zero"
-    return f"SPI 0x{spi:04x} IV {iv} MAC {zero}"
+    return f"SPI 0x{spi:04x}", f"IV {iv}", f"MAC {zero}"
 
 
-def decode_tc_frame(frame):
-    if len(frame) < TC_PRIHDR_LENGTH + SECHDR_LENGTH + TRAILER_LENGTH:
-        return f"({len(frame)} B, too short for a TC frame)"
+def _tc_frame_parts(frame):
     o0, o1, o2, o3, seq = frame[0:5]
     head = (f"TFVN {o0 >> 6} bypass {(o0 >> 5) & 1} ctl {(o0 >> 4) & 1} "
             f"SCID 0x{((o0 & 3) << 8) | o1:03x} VCID {o2 >> 2} "
             f"len {(((o2 & 3) << 8) | o3) + 1} seq {seq}")
     sec = frame[TC_PRIHDR_LENGTH : TC_PRIHDR_LENGTH + SECHDR_LENGTH]
-    return f"{head} | {_sechdr_note(sec, frame[-TRAILER_LENGTH:])}"
+    return (head, *_sechdr_parts(sec, frame[-TRAILER_LENGTH:]))
 
 
-def decode_tm_frame(frame):
-    if len(frame) < TM_PRIHDR_LENGTH + SECHDR_LENGTH + TRAILER_LENGTH:
-        return f"({len(frame)} B, too short for a TM frame)"
+def _tm_frame_parts(frame):
     id0, id1, mc, vc, dfs0, dfs1 = frame[0:6]
     head = (f"TFVN {id0 >> 6} SCID 0x{((id0 & 0x3F) << 4) | (id1 >> 4):03x} VCID {(id1 >> 1) & 7} "
             f"MC {mc} VC {vc} FHP {((dfs0 & 7) << 8) | dfs1}")
     sec = frame[TM_PRIHDR_LENGTH : TM_PRIHDR_LENGTH + SECHDR_LENGTH]
-    return f"{head} | {_sechdr_note(sec, frame[-TRAILER_LENGTH:])}"
+    return (head, *_sechdr_parts(sec, frame[-TRAILER_LENGTH:]))
 
 
-def _hexdump(data, limit, indent="        "):
+def _decode_frame(frame, parts, prihdr_len, name, paint):
+    if len(frame) < prihdr_len + SECHDR_LENGTH + TRAILER_LENGTH:
+        return f"({len(frame)} B, too short for a {name} frame)"
+    head, spi, iv, mac = parts(frame)
+    return f"{paint('prihdr', head)} | {paint('spi', spi)} {paint('iv', iv)} {paint('mac', mac)}"
+
+
+def decode_tc_frame(frame, paint=_Paint(False)):
+    return _decode_frame(frame, _tc_frame_parts, TC_PRIHDR_LENGTH, "TC", paint)
+
+
+def decode_tm_frame(frame, paint=_Paint(False)):
+    return _decode_frame(frame, _tm_frame_parts, TM_PRIHDR_LENGTH, "TM", paint)
+
+
+def _hex_row(data, start, end, regions, paint):
+    """Hex of data[start:end], one color per run of bytes in the same field."""
+    runs, kind, run = [], None, []
+    for i in range(start, end):
+        k = next((r[2] for r in regions if r[0] <= i < r[1]), None)
+        if k != kind and run:
+            runs.append((kind, run))
+            run = []
+        kind = k
+        run.append(f"{data[i]:02x}")
+    if run:
+        runs.append((kind, run))
+    return " ".join(paint(k, " ".join(r)) if k else " ".join(r) for k, r in runs)
+
+
+def _hexdump(data, limit, paint=_Paint(False), regions=(), tail=0, indent="        "):
+    """Hex dump, 16 bytes a row. With limit > 0 only the first limit bytes are shown,
+    plus the last tail bytes (so a frame's MAC stays visible when it is cut)."""
     if not data:
         return [f"{indent}-"]
-    shown = data if limit <= 0 else data[:limit]
-    lines = [f"{indent}{off:04x}  {shown[off:off + 16].hex(' ')}" for off in range(0, len(shown), 16)]
-    if len(shown) < len(data):
-        lines.append(f"{indent}... {len(data) - len(shown)} more bytes (--hex-limit 0 shows all)")
+    size = len(data)
+    spans = [(0, size)]
+    if 0 < limit < size and size - limit > tail:  # otherwise the tail joins the head: show it all
+        spans = [(0, limit)] + ([(size - tail, size)] if tail else [])
+    lines = []
+    for n, (start, end) in enumerate(spans):
+        if n == 1:
+            lines.append(f"{indent}... {spans[1][0] - spans[0][1]} bytes not shown (--hex-limit 0 shows all)")
+        for off in range(start, end, 16):
+            row = _hex_row(data, off, min(off + 16, end), regions, paint)
+            lines.append(f"{indent}{paint('offset', f'{off:04x}')}  {row}")
+    if len(spans) == 1 and spans[0][1] < size:
+        lines.append(f"{indent}... {size - spans[0][1]} more bytes (--hex-limit 0 shows all)")
     return lines
 
 
-def format_entry(entry, show_hex=True, hex_limit=128):
-    """Human readable block for one parsed log line."""
+def format_entry(entry, show_hex=True, hex_limit=128, color=False):
+    """Human readable block for one parsed log line (ANSI colored when color is True)."""
+    paint = _Paint(color)
     direction, ok = entry["dir"], entry["result"] == "OK"
-    head = (f"[{entry['time']}] {direction} {entry['result']:<4} pid {entry.get('pid', '?')} "
+    result = paint("ok" if ok else "fail", f"{entry['result']:<4}")
+    head = (f"[{entry['time']}] {direction} {result} pid {entry.get('pid', '?')} "
             f"{entry.get('src', '?')} {entry.get('mode', '?')}")
     if "host" in entry:
         head += f" from {entry['host']}"
     if not ok:
-        head += f"  {entry.get('err', '?')} ({entry.get('code', '?')})"
+        head += "  " + paint("fail", f"{entry.get('err', '?')} ({entry.get('code', '?')})")
     lines = [head]
     data_in = _unhex(entry.get("in"))
     outs = [_unhex(v) for v in entry.get("out", "-").split(",") if v != "-"]
 
+    def dump(data, regions, tail=0):
+        return _hexdump(data, hex_limit, paint, regions, tail) if show_hex else []
+
     if direction == "TC":
-        lines.append(f"  before  Space Packet {len(data_in):4d} B  {decode_spp(data_in)}")
-        if show_hex:
-            lines += _hexdump(data_in, hex_limit)
+        lines.append(f"  before  Space Packet {len(data_in):4d} B  {paint('spphdr', decode_spp(data_in))}")
+        lines += dump(data_in, spp_regions(len(data_in)))
         for frame in outs:
-            lines.append(f"  after   TC frame     {len(frame):4d} B  {decode_tc_frame(frame)}")
-            if show_hex:
-                lines += _hexdump(frame, hex_limit)
+            lines.append(f"  after   TC frame     {len(frame):4d} B  {decode_tc_frame(frame, paint)}")
+            lines += dump(frame, tc_frame_regions(len(frame)), TRAILER_LENGTH)
     else:
-        lines.append(f"  before  TM frame     {len(data_in):4d} B  {decode_tm_frame(data_in)}")
-        if show_hex:
-            lines += _hexdump(data_in, hex_limit)
+        lines.append(f"  before  TM frame     {len(data_in):4d} B  {decode_tm_frame(data_in, paint)}")
+        lines += dump(data_in, tm_frame_regions(len(data_in)), TRAILER_LENGTH)
         for i, packet in enumerate(outs, 1):
-            lines.append(f"  after   packet {i:<3d}   {len(packet):4d} B  {decode_spp(packet)}")
-            if show_hex:
-                lines += _hexdump(packet, hex_limit)
+            lines.append(f"  after   packet {i:<3d}   {len(packet):4d} B  {paint('spphdr', decode_spp(packet))}")
+            lines += dump(packet, spp_regions(len(packet)))
         if ok and not outs:
             lines.append("  after   (no packets: idle frame)")
     return "\n".join(lines)
@@ -379,7 +475,13 @@ def monitor(argv=None, out=sys.stdout):
     parser.add_argument("--hex-limit", type=int, default=128, metavar="N",
                         help="bytes of hex shown per field (default 128, 0 = all)")
     parser.add_argument("--raw", action="store_true", help="print log lines unchanged")
+    parser.add_argument("--color", choices=("auto", "always", "never"), default="auto",
+                        help="color the frame fields (default auto: only on a terminal, and not if $NO_COLOR is set)")
     args = parser.parse_args(argv)
+    color = not args.raw and (
+        args.color == "always"
+        or (args.color == "auto" and getattr(out, "isatty", lambda: False)()
+            and "NO_COLOR" not in os.environ and os.environ.get("TERM") != "dumb"))
 
     if args.once:
         try:
@@ -390,6 +492,8 @@ def monitor(argv=None, out=sys.stdout):
     else:
         print(f"sdlp_link monitor: following {args.log} (Ctrl+C to stop)", file=out, flush=True)
         lines = _follow(args.log, from_start=args.all)
+    if color:
+        print(legend(_Paint(True)) + "\n", file=out, flush=True)
 
     try:
         for line in lines:
@@ -398,8 +502,10 @@ def monitor(argv=None, out=sys.stdout):
                 continue
             if (args.dir and entry["dir"] != args.dir) or (args.fail and entry["result"] == "OK"):
                 continue
-            text = line.rstrip("\n") if args.raw else format_entry(entry, not args.no_hex, args.hex_limit)
-            print(text, file=out, flush=True)
+            if args.raw:  # exactly the log lines
+                print(line.rstrip("\n"), file=out, flush=True)
+            else:  # one blank line after each message keeps them apart
+                print(format_entry(entry, not args.no_hex, args.hex_limit, color) + "\n", file=out, flush=True)
     except KeyboardInterrupt:
         pass
     return 0
