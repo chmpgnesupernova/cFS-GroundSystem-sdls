@@ -2,11 +2,12 @@
 
 <img width="3822" height="2025" alt="스크린샷 2026-11-17 13-27-04" src="https://github.com/user-attachments/assets/2ab9971a-ef7a-419a-a825-d85186221189" />
 
-GUI 시스템: GroundSystem.py
-프레이밍 및 로깅: sdlp_link.py
-네트워크: Subsystem/cmdGui/network_config.py
+1. GUI 시스템: GroundSystem.py
+2. 프레이밍 및 로깅: sdlp_link.py
+3. 네트워크: Subsystem/cmdGui/network_config.py
 
 GroundSystem 에서 Target IP 를 변경 가능
+
 변경한 결과는 network-config.ini 에 저장
 
 GUI 가 아닌 cmdUtil 사용할 경우 프레이밍 동작 안하니 주의.
