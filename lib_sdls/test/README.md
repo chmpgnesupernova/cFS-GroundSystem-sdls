@@ -13,7 +13,7 @@ Python ground system이 ctypes로 `libsdls.so`를 불러 쓰는 방식 그대로
 | `sat_reference.py` | 위성 쪽 `TC_SDLP_myExtractPacket`, `TM_SDLP_myForwardPacket` 등의 Python 포팅. SA01/SA11 암호화 포함 (`SatCrypto`로 satsim 호출) |
 | `satsim/satsim.c` | 테스트 전용 위성 암호 라이브러리 `libsdls_satsim.so` 소스 |
 | `test_sdls.py` | SDLS 프레임 보호: TC 암호화를 위성이 복호화, 바이트 변조 거절, MC Frame Count 비인증, 위조 프레임이 ARSN을 못 미는지, 실패 시 데이터 소거. `cryptography`가 있으면 독립 구현으로 교차 검증 |
-| `test_sdlp_only.py` | SDLP-only 빌드: Security Header·Trailer 0, SPI 무시, SA DB 없이 동작, 0으로 채운 위성 TM 수신, 프레임 검사 유지 (SDLS 빌드에서는 건너뜀) |
+| `test_sdlp_only.py` | SDLP-only 빌드: TC는 Primary Header + SPP만(Security Header·MAC 없음), TM은 Security Header 14B를 검사 없이 건너뛰고 MAC 없음, SPI 무시, SA DB 없이 동작, 프레임 검사 유지 (SDLS 빌드에서는 건너뜀) |
 | `test_sdlp_link.py` | 공용 모듈 `sdlp_link.py`: TC/TM 처리와 로그 줄 내용, 실패 시 예외·로그, 라이브러리 없음, 로그 끄기·쓰기 실패, 여러 프로세스 동시 기록, 모니터 출력·필터·따라 읽기 |
 | `test_groundsystem.py` | 실제 `MiniCmdUtil.py`와 `RoutingService.py`를 UDP로 실행: 명령이 TC 프레임으로 나가는지, 프레임을 못 만들면 안 보내는지, TM 프레임의 패킷이 하나씩 원래 형식으로 발행되는지 (PyQt5·zmq는 가짜로 대체) |
 | `test_ep.py` | 키 교환: 위성 ek → 지상 캡슐화 → 위성 역캡슐화 → 양방향 보호 통신, 키 재교환, 변조된 ct, 잘못된 ek, ML-DSA 서명 검증, 프로세스 간 ct·서명키 공유 |

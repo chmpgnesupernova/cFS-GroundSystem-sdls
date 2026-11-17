@@ -26,10 +26,19 @@
 
 #define TM_SDLP_MY_FRAME_SIZE 1786
 
-/* SDLS Security Header right after the Primary Header (SPI 2 + IV 12 bytes) and the
- * Security Trailer (16 byte MAC) at the frame end. The same layout for every SA. */
+/* Security Header right after the Primary Header (SPI 2 + IV 12 bytes). The SDLP-only
+ * satellite TO (to_lab TM_SDLP_MY_SDLS_HDR_LENGTH 14) still reserves it, zero filled,
+ * so it is skipped unchecked in an SDLP-only build. */
 #define TM_SDLP_MY_SDLS_HDR_LENGTH SECHDR_MY_LENGTH
+
+#ifdef SDLS_MY_SDLP_ONLY
+/* SDLP-only: no Security Trailer, the data field runs to the frame end
+ * (to_lab TM_SDLP_MY_SDLS_TRL_LENGTH 0). */
+#define TM_SDLP_MY_SDLS_TRL_LENGTH 0
+#else
+/* SDLS: Security Trailer (16 byte MAC) at the frame end. The same layout for every SA. */
 #define TM_SDLP_MY_SDLS_TRL_LENGTH SDLS_MY_TRAILER_LENGTH
+#endif
 
 /* Data field position inside the frame. */
 #define TM_SDLP_MY_DATA_OFFSET (TMTF_MY_PRIHDR_LENGTH + TM_SDLP_MY_SDLS_HDR_LENGTH)

@@ -1,8 +1,11 @@
 /* Minimal TC-SDLP frame encoding for one fixed channel, mirrored from the SAT side
  * TC_SDLP_myExtractPacket (based on NOS3 CI udp_tf).
- * Frame: [Primary Header 5][Security Header 14][Space Packet][Security Trailer 16].
- * Security Header: SPI 2 + IV 12 bytes (sdls/sechdr_my.h). Security Trailer: the MAC
- * (sdls/sdls_my.h), zero filled on the unprotected SA00.
+ * SDLS build      : [Primary Header 5][Security Header 14][Space Packet][Security Trailer 16]
+ *                   Security Header: SPI 2 + IV 12 bytes (sdls/sechdr_my.h). Security
+ *                   Trailer: the MAC (sdls/sdls_my.h), zero filled on the unprotected SA00.
+ * SDLP-only build : [Primary Header 5][Space Packet]
+ *                   No Security Header and no Trailer, as the SDLP-only satellite CI
+ *                   (ci_lab TC_SDLP_MY_SDLS_HDR_LENGTH / TRL_LENGTH 0) expects.
  * No Segment Header (Type-D frame) and no FECF. */
 #ifndef _tc_sdlp_my_h_
 #define _tc_sdlp_my_h_
@@ -33,10 +36,16 @@
 #define TC_SDLP_MY_BYPASS_FLG 1
 #define TC_SDLP_MY_CTLCMD_FLG 0
 
+#ifdef SDLS_MY_SDLP_ONLY
+/* SDLP-only: the Space Packet follows the Primary Header directly and ends the frame. */
+#define TC_SDLP_MY_SDLS_HDR_LENGTH 0
+#define TC_SDLP_MY_SDLS_TRL_LENGTH 0
+#else
 /* SDLS Security Header right after the Primary Header (SPI 2 + IV 12 bytes) and the
  * Security Trailer (16 byte MAC) after the packet. The same layout for every SA. */
 #define TC_SDLP_MY_SDLS_HDR_LENGTH SECHDR_MY_LENGTH
 #define TC_SDLP_MY_SDLS_TRL_LENGTH SDLS_MY_TRAILER_LENGTH
+#endif
 
 /* The Frame Error Control Field is optional and not used. */
 #define TC_SDLP_MY_FECF_LENGTH 0
@@ -60,20 +69,22 @@
 int32_t TC_SDLP_myInit(void);
 
 /* Build mode, fixed at compile time (CMake SDLS_SDLP_ONLY):
- *   SDLP_MY_MODE_SDLP_ONLY : frames only. The Security Header (14 B) and Trailer (16 B)
- *                            are zero filled on send and ignored on receive; no SA DB,
- *                            no crypto library. TC_SDLP_myBuildFrame ignores spi and
+ *   SDLP_MY_MODE_SDLP_ONLY : frames only, laid out like the SDLP-only satellite (ci_lab /
+ *                            to_lab): a TC frame has no Security Header and no Trailer;
+ *                            a TM frame keeps its 14 B Security Header (SPI 2 + IV 12,
+ *                            not checked) and has no Trailer. No SA DB, no crypto
+ *                            library. TC_SDLP_myBuildFrame ignores spi and
  *                            TM_SDLP_myExtractPacket reports the SPI as written.
- *   SDLP_MY_MODE_SDLS      : full SDLS (sdls/sdls_my.h): SA DB, AES-GCM, key exchange.
- * The frame layout is the same in both, so either side can be switched later without
- * changing the other's frame parsing. */
+ *   SDLP_MY_MODE_SDLS      : full SDLS (sdls/sdls_my.h): SA DB, AES-GCM, key exchange;
+ *                            Security Header 14 B and Trailer 16 B on TC and TM.
+ * The two layouts differ, so both sides must be built in the same mode. */
 #define SDLP_MY_MODE_SDLP_ONLY 1
 #define SDLP_MY_MODE_SDLS      2
 int32_t SDLP_myGetMode(void);
 
 /* Wraps one Space Packet into a TC frame written to pBuf.
  * SDLS build: needs SA_myOpen (sa/sa_shm_my.h) in this process first.
- * SDLP-only build: no SA DB; the Security Header and Trailer are zero filled.
+ * SDLP-only build: no SA DB; the frame is the Primary Header and the packet only.
  * spi        : SA that protects the frame (ignored in an SDLP-only build). COMMON_SPI_SA00 for EP PDUs (always usable,
  *              not encrypted), COMMON_SPI_SA01 for session traffic (Operational after
  *              key exchange; AES-256-GCM, every frame takes a fresh IV).

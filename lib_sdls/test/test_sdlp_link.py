@@ -24,6 +24,9 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 import sdlp_link  # noqa: E402
 
 SDLP_ONLY = b.sdlp_only_build()
+MODE = "SDLP-only" if SDLP_ONLY else "SDLS"
+TC_MAX_PACKET = b.SDLP_ONLY_TC_MAX_PACKET_LENGTH if SDLP_ONLY else b.TC_MAX_PACKET_LENGTH
+TC_HDR, TC_TRL, TM_HDR, TM_TRL = b.frame_layout(SDLP_ONLY)
 ENV_KEYS = ("SDLS_LIB", "SDLP_LOG", "SDLS_SA_DB", "SDLP_TC_SPI")
 
 
@@ -97,12 +100,13 @@ class LinkTest(unittest.TestCase):
         self.assertEqual(sat_tc_extract_packet(frame), packet)
         (entry,) = read_log(self.log)
         self.assertEqual((entry["dir"], entry["result"], entry["src"]), ("TC", "OK", "unit"))
-        self.assertEqual(entry["mode"], "SDLP-only" if SDLP_ONLY else "SDLS")
+        self.assertEqual(entry["mode"], MODE)
+        self.assertEqual(len(frame), b.TCTF_PRIHDR_LENGTH + TC_HDR + len(packet) + TC_TRL)
         self.assertEqual((entry["in"], entry["out"]), (packet.hex(), frame.hex()))
         self.assertEqual(int(entry["pid"]), os.getpid())
 
     def test_tc_failure_raises_logs_and_returns_no_frame(self):
-        packet = make_spp(0x18, bytes(b.TC_MAX_PACKET_LENGTH))  # one byte too long
+        packet = make_spp(0x18, bytes(TC_MAX_PACKET))  # one byte too long
         with self.assertRaises(sdlp_link.SdlpError) as ctx:
             sdlp_link.encapsulate_tc(packet)
         self.assertEqual((ctx.exception.code, ctx.exception.name), (-3, "TC_SDLP_MY_INVALID_LENGTH"))
@@ -229,8 +233,11 @@ class MonitorTest(unittest.TestCase):
                         yield kind, data[lo:hi]
 
         size = len(self.frame)
-        regions = [(0, 5, "prihdr"), (5, 7, "spi"), (7, 19, "iv"), (19, size - 16, "data"), (size - 16, size, "mac")]
-        self.assertEqual(sdlp_link.tc_frame_regions(size), regions)
+        if SDLP_ONLY:  # [PriHdr 5][SPP]
+            regions = [(0, 5, "prihdr"), (5, size, "data")]
+        else:
+            regions = [(0, 5, "prihdr"), (5, 7, "spi"), (7, 19, "iv"), (19, size - 16, "data"), (size - 16, size, "mac")]
+        self.assertEqual(sdlp_link.tc_frame_regions(size, MODE), regions)
         for kind, part in [*runs(self.frame, regions), *runs(self.spp, sdlp_link.spp_regions(len(self.spp)))]:
             with self.subTest(kind=kind, part=part.hex()):
                 self.assertIn(f"{c[kind]}{part.hex(' ')}{end}", text)
@@ -245,8 +252,25 @@ class MonitorTest(unittest.TestCase):
 
     def test_cut_frame_still_shows_its_mac(self):
         text = self.run_monitor("--dir", "TM", "--hex-limit", "32")
+        if SDLP_ONLY:  # no MAC: only the head is shown
+            self.assertIn(f"{b.TM_FRAME_SIZE - 32} more bytes", text)
+            self.assertIn("no MAC", text)
+            return
         self.assertIn(f"{b.TM_FRAME_SIZE - 48} bytes not shown", text)
         self.assertIn(f"{b.TM_FRAME_SIZE - 16:04x}  " + "00 " * 15 + "00", text)  # the 16 MAC bytes
+
+    def test_layout_follows_the_mode_in_the_log_line(self):
+        """The monitor draws each line with that line's mode, whatever this build is."""
+        tc_only, tc_sdls = sdlp_link.tc_frame_regions(20, "SDLP-only"), sdlp_link.tc_frame_regions(50, "SDLS")
+        self.assertEqual(tc_only, [(0, 5, "prihdr"), (5, 20, "data")])
+        self.assertEqual([k for *_, k in tc_sdls], ["prihdr", "spi", "iv", "data", "mac"])
+        tm_only = sdlp_link.tm_frame_regions(b.TM_FRAME_SIZE, "SDLP-only")
+        self.assertEqual(tm_only, [(0, 6, "prihdr"), (6, 8, "spi"), (8, 20, "iv"), (20, b.TM_FRAME_SIZE, "data")])
+        self.assertEqual(sdlp_link.tm_frame_regions(b.TM_FRAME_SIZE, "SDLS")[-1], (1770, 1786, "mac"))
+        frame = bytes.fromhex("2003000c00" "1882c000000100a4")
+        self.assertIn("no Security Header no MAC", sdlp_link.decode_tc_frame(frame, mode="SDLP-only"))
+        self.assertIn("(13 B, too short for a TC frame)", sdlp_link.decode_tc_frame(frame, mode="SDLS"))
+        self.assertEqual(sdlp_link.layout("garbage"), sdlp_link.layout(sdlp_link.MODE_SDLS))
 
     def test_short_frame_is_shown_whole(self):
         lines = sdlp_link._hexdump(self.frame, 32, tail=16)

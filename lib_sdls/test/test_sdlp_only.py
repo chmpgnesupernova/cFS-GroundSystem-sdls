@@ -1,8 +1,12 @@
-"""SDLP-only build (CMake SDLS_SDLP_ONLY=ON): frames only, Security Header and Trailer zero.
+"""SDLP-only build (CMake SDLS_SDLP_ONLY=ON): frames only, laid out like the SDLP-only
+satellite (Heeseung1123/cFS ci_lab and to_lab):
 
-The frame layout is the SDLS one ([PriHdr][SecHdr 14][data][Trailer 16]); only the
-security fields are dummies. No SA DB is needed, and the satellite reference (an
-SDLP-only satellite) must exchange frames with the library byte for byte.
+    TC  [Primary Header 5][Space Packet]                          no Security Header, no MAC
+    TM  [Primary Header 6][Security Header 14][packets + idle]    Security Header zero and
+                                                                  not checked, no MAC
+
+No SA DB is needed, and the satellite reference (an SDLP-only satellite) must exchange
+frames with the library byte for byte.
 """
 
 import ctypes
@@ -15,8 +19,9 @@ import sdls_binding as b
 from sat_reference import SatTmFramer, make_spp, sat_tc_extract_packet, tc_header_fields
 
 SDLP_ONLY = b.sdlp_only_build()
-TC_DATA = b.TCTF_PRIHDR_LENGTH + b.SECHDR_LENGTH
-TRL = b.TC_SDLS_TRL_LENGTH
+TC_DATA = b.TCTF_PRIHDR_LENGTH  # the packet follows the Primary Header
+TC_MAX = b.SDLP_ONLY_TC_MAX_PACKET_LENGTH
+TM_DATA = b.SDLP_ONLY_TM_DATA_OFFSET
 
 
 def tm_frame(packets, **args):
@@ -38,19 +43,23 @@ class SdlpOnlyTcTest(unittest.TestCase):
         self.assertEqual(self.sdls.mode, b.MODE_SDLP_ONLY)
         self.assertFalse(hasattr(self.sdls.lib, "SA_myOpen"), "SDLS code must not be built in")
 
-    def test_security_header_and_trailer_are_zero(self):
+    def test_no_security_header_and_no_trailer(self):
         packet = make_spp(0x18, bytes(range(30)))
         frame = self.sdls.tc_build_frame(b.SPI_SA00, packet)
-        self.assertEqual(len(frame), TC_DATA + len(packet) + TRL)
-        self.assertEqual(frame[b.TCTF_PRIHDR_LENGTH:TC_DATA], bytes(b.SECHDR_LENGTH))
-        self.assertEqual(frame[TC_DATA:-TRL], packet)  # in clear
-        self.assertEqual(frame[-TRL:], bytes(TRL))
+        self.assertEqual(len(frame), b.TCTF_PRIHDR_LENGTH + len(packet))
+        self.assertEqual(frame[TC_DATA:], packet)
+
+    def test_noop_frame_byte_for_byte(self):
+        """What the SDLP-only satellite CI expects for TO_LAB NOOP (13 bytes, length 12)."""
+        frame = self.sdls.tc_build_frame(0, bytes.fromhex("1882c000000100a4"))
+        self.assertEqual(frame[:4].hex(), "2003000c")
+        self.assertEqual(frame[5:].hex(), "1882c000000100a4")
 
     def test_spi_argument_is_ignored(self):
         packet = make_spp(0x18, b"\x01\x02")
         a = self.sdls.tc_build_frame(b.SPI_SA00, packet)
         c = self.sdls.tc_build_frame(b.SPI_SA01, packet)
-        self.assertEqual(a[b.TCTF_PRIHDR_LENGTH:], c[b.TCTF_PRIHDR_LENGTH:])  # only the sequence number differs
+        self.assertEqual(a[:4] + a[5:], c[:4] + c[5:])  # only the sequence number differs
 
     def test_primary_header_as_before(self):
         packet = make_spp(0x18, b"\x00" * 5)
@@ -61,14 +70,16 @@ class SdlpOnlyTcTest(unittest.TestCase):
         self.assertEqual(hdr["framelen"] + 1, len(frame))
 
     def test_satellite_takes_the_packet_out(self):
-        for size in (1, 100, b.TC_MAX_PACKET_LENGTH - b.TC_SPP_HDR_LENGTH):
+        for size in (1, 100, TC_MAX - b.TC_SPP_HDR_LENGTH):
             with self.subTest(size=size):
                 packet = make_spp(0x18, bytes(i & 0xFF for i in range(size)))
-                self.assertEqual(sat_tc_extract_packet(self.sdls.tc_build_frame(0, packet)), packet)
+                frame = self.sdls.tc_build_frame(0, packet)
+                self.assertEqual(sat_tc_extract_packet(frame, sdlp_only=True), packet)
+        self.assertEqual(len(frame), b.TCTF_MAX_FRAME_LENGTH)  # the biggest packet fills 1024 B
 
     def test_frame_errors_still_apply(self):
         with self.assertRaises(b.SdlsError) as ctx:
-            self.sdls.tc_build_frame(0, make_spp(0x18, bytes(b.TC_MAX_PACKET_LENGTH)))  # one byte too long
+            self.sdls.tc_build_frame(0, make_spp(0x18, bytes(TC_MAX)))  # one byte too long
         self.assertEqual(ctx.exception.code, b.TC_INVALID_LENGTH)
         bad = bytearray(make_spp(0x18, bytes(10)))
         bad[5] = 0
@@ -86,7 +97,7 @@ class SdlpOnlyTcTest(unittest.TestCase):
             build = lambda: fresh.lib.TC_SDLP_myBuildFrame(0, packet, len(packet), buf, 64)  # noqa: E731
             self.assertEqual(build(), b.TC_NOT_INITIALIZED)
             fresh.tc_init()
-            self.assertEqual(build(), TC_DATA + len(packet) + TRL)
+            self.assertEqual(build(), TC_DATA + len(packet))
 
 
 @unittest.skipUnless(SDLP_ONLY, "SDLS build (see test_tm_sdlp.py)")
@@ -98,8 +109,23 @@ class SdlpOnlyTmTest(unittest.TestCase):
     def test_every_packet_comes_out_without_an_sa_db(self):
         packets = [make_spp(0x100 + i, bytes([i]) * (5 + 40 * i)) for i in range(6)]
         (frame,) = tm_frame(packets)
-        self.assertEqual(frame[b.TMTF_PRIHDR_LENGTH : b.TM_DATA_OFFSET], bytes(b.SECHDR_LENGTH))
+        self.assertEqual(frame[b.TMTF_PRIHDR_LENGTH : TM_DATA], bytes(b.SECHDR_LENGTH))
         self.assertEqual(self.sdls.tm_extract(frame), (0, packets))
+
+    def test_idle_packet_runs_to_the_frame_end(self):
+        """No MAC: the satellite fills the data field up to byte 1786 with the idle packet."""
+        packet = make_spp(0x101, bytes(9))
+        (frame,) = tm_frame([packet])
+        idle = TM_DATA + len(packet)
+        self.assertEqual(frame[idle : idle + 2], b"\x07\xff")
+        self.assertEqual(idle + int.from_bytes(frame[idle + 4 : idle + 6], "big") + 7, b.TM_FRAME_SIZE)
+        self.assertEqual(self.sdls.tm_extract_packets(frame), [packet])
+
+    def test_packet_that_fills_the_frame_exactly(self):
+        packet = make_spp(0x104, bytes(b.TM_FRAME_SIZE - TM_DATA - b.TC_SPP_HDR_LENGTH))
+        (frame,) = tm_frame([packet])
+        self.assertEqual(frame[-1:], packet[-1:])
+        self.assertEqual(self.sdls.tm_extract_packets(frame), [packet])
 
     def test_stream_over_several_frames(self):
         packets = [make_spp(0x200, bytes(300)) for _ in range(20)]
@@ -108,12 +134,11 @@ class SdlpOnlyTmTest(unittest.TestCase):
         out = [p for frame in frames for p in self.sdls.tm_extract_packets(frame)]
         self.assertEqual(out, packets)
 
-    def test_security_fields_are_not_checked(self):
-        """Dummy fields: whatever they hold, the frame is accepted and the SPI reported."""
+    def test_security_header_is_not_checked(self):
+        """Dummy field: whatever it holds, the frame is accepted and the SPI reported."""
         packet = make_spp(0x101, b"x")
         frame = bytearray(tm_frame([packet])[0])
-        frame[b.TMTF_PRIHDR_LENGTH : b.TM_DATA_OFFSET] = bytes([0x12, 0x34]) + b"\xEE" * 12
-        frame[-b.TM_SDLS_TRL_LENGTH :] = b"\x99" * b.TM_SDLS_TRL_LENGTH
+        frame[b.TMTF_PRIHDR_LENGTH : TM_DATA] = bytes([0x12, 0x34]) + b"\xEE" * 12
         self.assertEqual(self.sdls.tm_extract(bytes(frame)), (0x1234, [packet]))
 
     def test_same_frame_twice_is_fine(self):

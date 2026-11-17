@@ -10,7 +10,7 @@ project(lib_sdls VERSION 0.3.0 LANGUAGES C)
 #                Builds src/sdlp only: no SA DB, no crypto, no wolfSSL needed.
 # OFF          : full SDLS (SA DB, AES-256-GCM, PQC key exchange) on wolfSSL.
 # The SDLS sources stay in the tree in both modes; ON only leaves them out of the build.
-option(SDLS_SDLP_ONLY "Build SDLP framing only (Security Header/Trailer zero filled)" ON)
+option(SDLS_SDLP_ONLY "Build SDLP framing only (TC: no Security Header/MAC; TM: Security Header skipped, no MAC)" ON)
 
 set(SDLS_SDLP_SOURCES
   src/sdlp/tc_sdlp_my.c

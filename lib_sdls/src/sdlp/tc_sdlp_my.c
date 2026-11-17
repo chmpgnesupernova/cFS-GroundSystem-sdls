@@ -19,8 +19,8 @@ int32_t TC_SDLP_myInit(void)
 {
     TC_SDLP_myFrameInfo_t *pFrameInfo = &TC_SDLP_myFrameInfo;
 
-    /* Every SA uses the same fixed Security Header (SPI 2 + IV 12), so the layout
-     * does not depend on the SA. */
+    /* The layout depends only on the build mode (Security Header 14 B in SDLS, none in
+     * SDLP-only), never on the SA. */
     pFrameInfo->dataFieldOffset = TCTF_MY_PRIHDR_LENGTH + TC_SDLP_MY_SDLS_HDR_LENGTH;
     pFrameInfo->maxPacketSize   = TC_SDLP_MY_MAX_PACKET_LENGTH;
     pFrameInfo->frameSeqNum     = 0;
@@ -91,11 +91,9 @@ int32_t TC_SDLP_myBuildFrame(uint16_t spi, const void *pPacket, size_t packetSiz
     memcpy(pFrame + pFrameInfo->dataFieldOffset, pSpp, packetSize);
 
 #ifdef SDLS_MY_SDLP_ONLY
-    /* SDLP-only build: the Security Header and Trailer keep their place in the frame but
-     * hold dummy zeros. No SA, no IV, no MAC; spi is ignored. */
+    /* SDLP-only build: no Security Header and no Trailer, so the frame is complete.
+     * No SA, no IV, no MAC; spi is ignored. */
     (void)spi;
-    memset(pFrame + TCTF_MY_PRIHDR_LENGTH, 0, TC_SDLP_MY_SDLS_HDR_LENGTH);
-    memset(pFrame + pFrameInfo->dataFieldOffset + packetSize, 0, TC_SDLP_MY_SDLS_TRL_LENGTH);
 #else
     /* Security Header, encryption and Security Trailer, as the SA says. Runs after every
      * frame check, with the Primary Header final (it is authenticated). */
