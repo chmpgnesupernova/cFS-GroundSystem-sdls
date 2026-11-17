@@ -6,6 +6,7 @@ builds (SDLP-only and SDLS).
 """
 
 import contextlib
+import ctypes
 import io
 import multiprocessing
 import os
@@ -121,6 +122,37 @@ class LinkTest(unittest.TestCase):
         self.assertIsNone(ctx.exception.code)
         self.assertEqual(read_log(self.log)[0]["err"], sdlp_link.LIB_ERROR)
         self.assertEqual(sdlp_link.mode_name(), "unloaded")
+
+    def test_library_layout_matches_this_module(self):
+        sdlp_link.encapsulate_tc(make_spp(0x18, b"x"))  # loads and checks
+        self.assertEqual(sdlp_link.layout(sdlp_link._mode),
+                         dict(zip(("tc_sechdr", "tc_trailer", "tm_sechdr", "tm_trailer"), b.frame_layout(SDLP_ONLY))))
+
+    def test_stale_library_is_refused(self):
+        """A libsdls.so built before SDLP_myGetLayout, or one that frames differently, is
+        refused with a rebuild hint instead of sending frames the satellite drops."""
+
+        class OldLib:  # no SDLP_myGetLayout
+            pass
+
+        with self.assertRaises(sdlp_link.SdlpError) as ctx:
+            sdlp_link._check_layout(OldLib(), "/x/libsdls.so", sdlp_link.MODE_SDLP_ONLY)
+        self.assertIn("older than sdlp_link.py", str(ctx.exception))
+        self.assertIn("cmake --build", str(ctx.exception))
+
+        u32p = ctypes.POINTER(ctypes.c_uint32)
+
+        def sdls_lengths(tc_hdr, tc_trl, tm_hdr, tm_trl):
+            for ptr, value in ((tc_hdr, 14), (tc_trl, 16), (tm_hdr, 14), (tm_trl, 16)):
+                ptr[0] = value
+
+        class WrongLib:
+            SDLP_myGetLayout = ctypes.CFUNCTYPE(None, u32p, u32p, u32p, u32p)(sdls_lengths)
+
+        with self.assertRaises(sdlp_link.SdlpError) as ctx:
+            sdlp_link._check_layout(WrongLib(), "/x/libsdls.so", sdlp_link.MODE_SDLP_ONLY)
+        self.assertIn("'tc_sechdr': 14", str(ctx.exception))
+        sdlp_link._check_layout(WrongLib(), "/x/libsdls.so", sdlp_link.MODE_SDLS)  # matches SDLS
 
     # --- TM -----------------------------------------------------------------------------
 

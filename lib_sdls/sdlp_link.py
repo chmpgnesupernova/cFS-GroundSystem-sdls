@@ -127,6 +127,7 @@ def _load():
     lib.TM_SDLP_myExtractPacket.restype = i32
 
     mode = lib.SDLP_myGetMode()
+    _check_layout(lib, path, mode)
     if lib.TC_SDLP_myInit() != 0:
         raise SdlpError(f"TC_SDLP_myInit failed in {path}")
     if mode == MODE_SDLS:
@@ -138,6 +139,28 @@ def _load():
             raise SdlpError(f"SA_myOpen({name}) failed ({status})")
     _lib, _mode = lib, mode
     return lib
+
+
+REBUILD_HINT = "rebuild it: cmake --build lib_sdls/build (or point SDLS_LIB at a fresh build)"
+
+
+def _check_layout(lib, path, mode):
+    """Refuses a libsdls.so that frames differently from this module (for example one
+    built before the SDLP-only layout lost its Security Header), so a stale library can
+    never send frames the satellite drops while the monitor shows the expected layout."""
+    try:
+        get_layout = lib.SDLP_myGetLayout
+    except AttributeError:
+        raise SdlpError(f"{path} is older than sdlp_link.py (no SDLP_myGetLayout); {REBUILD_HINT}") from None
+    u32 = ctypes.c_uint32
+    get_layout.argtypes, get_layout.restype = [ctypes.POINTER(u32)] * 4, None
+    values = [u32(0) for _ in range(4)]
+    get_layout(*(ctypes.byref(v) for v in values))
+    built = dict(zip(("tc_sechdr", "tc_trailer", "tm_sechdr", "tm_trailer"), (v.value for v in values)))
+    expected = layout(mode)
+    if built != expected:
+        raise SdlpError(f"{path} ({MODE_NAMES.get(mode, mode)}) frames with {built}, sdlp_link.py expects "
+                        f"{expected}; {REBUILD_HINT}")
 
 
 def mode_name():

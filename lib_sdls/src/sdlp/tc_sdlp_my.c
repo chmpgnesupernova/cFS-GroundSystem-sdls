@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "tc_sdlp_my.h"
+#include "tm_sdlp_my.h"
 
 typedef struct
 {
@@ -36,6 +37,26 @@ int32_t SDLP_myGetMode(void)
 #else
     return SDLP_MY_MODE_SDLS;
 #endif
+}
+
+void SDLP_myGetLayout(uint32_t *pTcHdr, uint32_t *pTcTrl, uint32_t *pTmHdr, uint32_t *pTmTrl)
+{
+    if (pTcHdr != NULL)
+    {
+        *pTcHdr = TC_SDLP_MY_SDLS_HDR_LENGTH;
+    }
+    if (pTcTrl != NULL)
+    {
+        *pTcTrl = TC_SDLP_MY_SDLS_TRL_LENGTH;
+    }
+    if (pTmHdr != NULL)
+    {
+        *pTmHdr = TM_SDLP_MY_SDLS_HDR_LENGTH;
+    }
+    if (pTmTrl != NULL)
+    {
+        *pTmTrl = TM_SDLP_MY_SDLS_TRL_LENGTH;
+    }
 }
 
 int32_t TC_SDLP_myBuildFrame(uint16_t spi, const void *pPacket, size_t packetSize, void *pBuf, size_t bufSize)

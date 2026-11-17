@@ -81,6 +81,13 @@ int32_t TC_SDLP_myInit(void);
 #define SDLP_MY_MODE_SDLS      2
 int32_t SDLP_myGetMode(void);
 
+/* Security Header / Trailer lengths this library was built with, so a caller (the
+ * Python link) can check that it frames like the library does. Any pointer may be NULL.
+ *   SDLP-only build: 0 / 0 / 0 / 0     SDLS build: 14 / 16 / 14 / 16
+ * Added together with the SDLP-only layout without Security Header: a libsdls.so that
+ * lacks this function is older than that and must be rebuilt. */
+void SDLP_myGetLayout(uint32_t *pTcHdr, uint32_t *pTcTrl, uint32_t *pTmHdr, uint32_t *pTmTrl);
+
 /* Wraps one Space Packet into a TC frame written to pBuf.
  * SDLS build: needs SA_myOpen (sa/sa_shm_my.h) in this process first.
  * SDLP-only build: no SA DB; the frame is the Primary Header and the packet only.
