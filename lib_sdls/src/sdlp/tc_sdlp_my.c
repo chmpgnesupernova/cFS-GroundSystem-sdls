@@ -29,6 +29,15 @@ int32_t TC_SDLP_myInit(void)
     return TC_SDLP_MY_SUCCESS;
 }
 
+int32_t SDLP_myGetMode(void)
+{
+#ifdef SDLS_MY_SDLP_ONLY
+    return SDLP_MY_MODE_SDLP_ONLY;
+#else
+    return SDLP_MY_MODE_SDLS;
+#endif
+}
+
 int32_t TC_SDLP_myBuildFrame(uint16_t spi, const void *pPacket, size_t packetSize, void *pBuf, size_t bufSize)
 {
     TC_SDLP_myFrameInfo_t *pFrameInfo = &TC_SDLP_myFrameInfo;
@@ -81,6 +90,13 @@ int32_t TC_SDLP_myBuildFrame(uint16_t spi, const void *pPacket, size_t packetSiz
     /* The data field holds exactly one Space Packet. */
     memcpy(pFrame + pFrameInfo->dataFieldOffset, pSpp, packetSize);
 
+#ifdef SDLS_MY_SDLP_ONLY
+    /* SDLP-only build: the Security Header and Trailer keep their place in the frame but
+     * hold dummy zeros. No SA, no IV, no MAC; spi is ignored. */
+    (void)spi;
+    memset(pFrame + TCTF_MY_PRIHDR_LENGTH, 0, TC_SDLP_MY_SDLS_HDR_LENGTH);
+    memset(pFrame + pFrameInfo->dataFieldOffset + packetSize, 0, TC_SDLP_MY_SDLS_TRL_LENGTH);
+#else
     /* Security Header, encryption and Security Trailer, as the SA says. Runs after every
      * frame check, with the Primary Header final (it is authenticated). */
     if (SDLS_myApplySecurityTc(spi, pFrame, TCTF_MY_PRIHDR_LENGTH, packetSize, bufSize) != SA_MY_SUCCESS)
@@ -88,6 +104,7 @@ int32_t TC_SDLP_myBuildFrame(uint16_t spi, const void *pPacket, size_t packetSiz
         memset(pFrame, 0, frameSize); /* never leave a half built frame (or plaintext) behind */
         return TC_SDLP_MY_SECURITY_ERROR;
     }
+#endif
 
     /* The optional FECF is not used, so no CRC is appended. */
 

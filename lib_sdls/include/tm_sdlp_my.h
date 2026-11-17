@@ -69,6 +69,8 @@
  * Returns the packet size (> 0), 0 when the frame has no more packets
  * (the idle packet or the data field end was reached), or a negative error code.
  *
+ * SDLP-only build (SDLP_myGetMode): no SA DB and no SDLS; the Security Header and
+ * Trailer are ignored and *pSpi is the SPI as written. Everything below is the SDLS build.
  * Needs SA_myOpen (sa/sa_shm_my.h) in this process first. The SPI must name an
  * Operational TM SA: SA10 (EP PDUs, IV and MAC ignored) or SA11 (session: the IV must be
  * a new ARSN within the window and the MAC must verify). The ARSN is recorded only after

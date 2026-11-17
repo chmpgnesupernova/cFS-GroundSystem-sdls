@@ -60,6 +60,8 @@ class SaShmTestBase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.sdls = b.Sdls()
+        if cls.sdls.sdlp_only:
+            raise unittest.SkipTest("SDLP-only build: no SA DB / SDLS")
         cls.ctx = multiprocessing.get_context("spawn")
 
     def setUp(self):

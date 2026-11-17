@@ -1,5 +1,0 @@
-/home/yujin/Documents/lab-2026-1/lib-sdls/build/CMakeFiles/sdls.dir
-/home/yujin/Documents/lab-2026-1/lib-sdls/build/CMakeFiles/sdls_satsim.dir
-/home/yujin/Documents/lab-2026-1/lib-sdls/build/CMakeFiles/test.dir
-/home/yujin/Documents/lab-2026-1/lib-sdls/build/CMakeFiles/edit_cache.dir
-/home/yujin/Documents/lab-2026-1/lib-sdls/build/CMakeFiles/rebuild_cache.dir

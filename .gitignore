@@ -1,0 +1,7 @@
+# lib_sdls build output (build with: cmake -S lib_sdls -B lib_sdls/build && cmake --build lib_sdls/build)
+lib_sdls/build/
+build/
+
+# Python
+__pycache__/
+*.pyc

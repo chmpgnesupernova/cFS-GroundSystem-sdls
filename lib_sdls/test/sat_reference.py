@@ -208,6 +208,7 @@ class SatTmFramer:
     spi: SA written into every Security Header. SPI_SA10 (EP PDUs) zero fills the IV and
     the MAC; any other SA sends first_iv, first_iv + 1, ... (one per frame, like the
     satellite SA11 send side), and with key set encrypts the data field (AES-256-GCM).
+    sdlp_only: an SDLP-only satellite, Security Header and Trailer zero filled.
     """
 
     def __init__(
@@ -218,6 +219,7 @@ class SatTmFramer:
         spi=b.SPI_SA10,
         first_iv=1,
         key=None,
+        sdlp_only=False,
     ):
         # TM_SDLP_myInit
         self.data_field_offset = b.TMTF_PRIHDR_LENGTH + b.TM_SDLS_HDR_LENGTH
@@ -230,6 +232,7 @@ class SatTmFramer:
         self.spi = spi
         self.next_iv = first_iv
         self.key = key
+        self.sdlp_only = sdlp_only  # SDLP-only satellite: Security Header and Trailer all zero
 
         # TMTF_MY_WR_TF_VERSION / SCID / VCID / SEGLENGTHID / FIRSTHDRPTR(0)
         self.frame[0] = ((tfvn & 0x03) << 6) | ((scid >> 4) & 0x3F)
@@ -256,6 +259,10 @@ class SatTmFramer:
         self.free_octets = 0
 
     def _write_sechdr(self):
+        if self.sdlp_only:
+            start = b.TMTF_PRIHDR_LENGTH
+            self.frame[start : start + b.SECHDR_LENGTH] = bytes(b.SECHDR_LENGTH)
+            return 0
         if self.spi == b.SPI_SA10:
             iv = 0
         else:
@@ -270,7 +277,7 @@ class SatTmFramer:
     def _protect(self, iv):
         """Security Trailer: GCM over the data field for a keyed session SA, else zeros."""
         end = b.TM_DATA_END
-        if self.spi == b.SPI_SA10 or self.key is None:
+        if self.sdlp_only or self.spi == b.SPI_SA10 or self.key is None:
             self.frame[end:] = bytes(b.TM_SDLS_TRL_LENGTH)
             return
         hdr_end = b.TMTF_PRIHDR_LENGTH

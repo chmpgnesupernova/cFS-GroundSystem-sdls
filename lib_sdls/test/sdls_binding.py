@@ -77,6 +77,18 @@ TM_ERROR_NAMES = {
     TM_SECURITY_ERROR: "TM_SDLP_MY_SECURITY_ERROR",
 }
 
+# Build mode (include/tc_sdlp_my.h, CMake SDLS_SDLP_ONLY)
+MODE_SDLP_ONLY = 1
+MODE_SDLS = 2
+
+
+def sdlp_only_build(path=None):
+    """True when libsdls.so was built with SDLS_SDLP_ONLY (no SA DB, no crypto)."""
+    lib = ctypes.CDLL(path or find_library())
+    lib.SDLP_myGetMode.restype = ctypes.c_int32
+    return lib.SDLP_myGetMode() == MODE_SDLP_ONLY
+
+
 # SDLS frame protection (include/sdls/sdls_my.h)
 SDLS_TRAILER_LENGTH = 16
 SDLS_CRYPTO_ERROR = -20
@@ -267,13 +279,21 @@ class Sdls:
             ("EP_mySign", [p, ctypes.c_size_t, p, ctypes.POINTER(ctypes.c_size_t)]),
             ("EP_myStartSessions", []),
         ):
-            func = getattr(lib, name)
+            func = getattr(lib, name, None)
+            if func is None:  # SDLP-only build: the SA/SDLS/EP functions are not built
+                continue
             func.argtypes = argtypes
             func.restype = i32
-        lib.SA_mySaSize.argtypes = []
-        lib.SA_mySaSize.restype = ctypes.c_size_t
-        if lib.SA_mySaSize() != ctypes.sizeof(CommonSa):
-            raise RuntimeError("CommonSa does not match common_sa_t; update sdls_binding.py")
+        if hasattr(lib, "SA_mySaSize"):  # SDLS build only
+            lib.SA_mySaSize.argtypes = []
+            lib.SA_mySaSize.restype = ctypes.c_size_t
+            if lib.SA_mySaSize() != ctypes.sizeof(CommonSa):
+                raise RuntimeError("CommonSa does not match common_sa_t; update sdls_binding.py")
+
+        lib.SDLP_myGetMode.argtypes = []
+        lib.SDLP_myGetMode.restype = ctypes.c_int32
+        self.mode = lib.SDLP_myGetMode()
+        self.sdlp_only = self.mode == MODE_SDLP_ONLY
 
         self.lib = lib
 

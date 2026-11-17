@@ -178,6 +178,7 @@ class TcBuildFrameTest(SaShmTestBase):
         self.assertEqual(ctx.exception.code, b.TC_INVALID_LENGTH)
 
 
+@unittest.skipIf(b.sdlp_only_build(), "SDLP-only build: no SA DB (see test_sdlp_only.py)")
 class TcFreshLibraryTest(unittest.TestCase):
     """Uses a private copy of the library so its static state is fresh
     (no TC_SDLP_myInit and no SA_myOpen yet)."""
