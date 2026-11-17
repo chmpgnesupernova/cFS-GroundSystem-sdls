@@ -42,6 +42,7 @@ from pathlib import Path
 from PyQt5.QtWidgets import (QApplication, QDialog, QHeaderView, QPushButton,
                              QTableWidgetItem)
 
+import network_config
 from MiniCmdUtil import MiniCmdUtil
 from UiGenericcommanddialog import UiGenericcommanddialog
 
@@ -128,7 +129,9 @@ if __name__ == '__main__':
     #
     page_title = "Command Page"
     page_port = 1234
-    page_address = "127.0.0.1"
+    # Opened from the Command System, --address carries its TC target IP. Started
+    # on its own, the page uses the saved one (network-config.ini).
+    page_address = network_config.load_tc_target_ip() or "127.0.0.1"
     page_pkt_id = 1801
     page_endian = "LE"
     page_def_file = "cfe__es__msg_8h"

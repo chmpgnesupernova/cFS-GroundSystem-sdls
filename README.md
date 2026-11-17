@@ -43,6 +43,17 @@ python3 lib_sdls/sdlp_link.py --all --dir TC # 지난 로그부터, TC만 / --fa
 모든 TC/TM 처리는 `/tmp/sdlp_link.log`에 한 줄씩 남습니다(시각, 방향, 결과, 프로세스, 처리 전 hex, 처리 후 hex).
 환경변수 `SDLP_LOG`로 위치를 바꾸거나 `off`로 끌 수 있고, `SDLS_LIB`로 다른 `libsdls.so`를 지정할 수 있습니다.
 
+### 명령 목적지 IP (TC Target IP)
+
+Command System 창 위쪽의 **TC Target IP** 칸에 위성 IP를 넣고 **Apply**(또는 Enter)를 누르면:
+
+- 표의 모든 명령 페이지와 퀵 버튼이 그 IP로 명령을 보냅니다. 이후 여는 명령 페이지에도 같은 IP가 들어갑니다.
+- 값이 저장소 최상위의 `network-config.ini`에 저장되고, 다음에 Command System을 열 때 다시 적용됩니다 (`command-pages.txt`의 주소보다 우선).
+- 저장 위치는 환경변수 `GS_NETWORK_CONFIG`로 바꿀 수 있습니다. 파일은 `.gitignore`에 들어 있어 커밋되지 않습니다.
+
+IP만 바꿀 수 있습니다. 포트는 위성 쪽에 고정돼 있어서 `command-pages.txt` / `quick-buttons.txt` 값을 그대로 씁니다.
+위성이 TM을 보낼 지상국 IP는 이것과 별개로, **Enable Tlm** 명령의 `dest_IP`로 정합니다.
+
 ### 주의
 
 - 위성(cFS CI_LAB/TO_LAB)도 같은 프레임 형식이어야 합니다: TC는 Bypass 1·SCID 0x003·VCID 0, TM은 1786 B 고정, 양쪽 모두 Security Header 14 B + Trailer 16 B(0).
