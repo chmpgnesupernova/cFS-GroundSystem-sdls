@@ -7,6 +7,7 @@ in include/ (tc_sdlp_my.h, tm_sdlp_my.h, sa/, sdls/, ep/). Keep them in sync.
 """
 
 import ctypes
+import functools
 import os
 import pathlib
 
@@ -84,9 +85,34 @@ MODE_SDLS = 2
 
 def sdlp_only_build(path=None):
     """True when libsdls.so was built with SDLS_SDLP_ONLY (no SA DB, no crypto)."""
-    lib = ctypes.CDLL(path or find_library())
+    return _sdlp_only_build(str(path or find_library()))
+
+
+@functools.lru_cache(maxsize=None)
+def _sdlp_only_build(path):
+    lib = ctypes.CDLL(path)
     lib.SDLP_myGetMode.restype = ctypes.c_int32
     return lib.SDLP_myGetMode() == MODE_SDLP_ONLY
+
+
+# SDLP-only layout (SDLS_MY_SDLP_ONLY in include/tc_sdlp_my.h, tm_sdlp_my.h), as the
+# SDLP-only satellite (ci_lab / to_lab) frames it. The TC_/TM_ constants above are the
+# SDLS layout.
+SDLP_ONLY_TC_SDLS_HDR_LENGTH = 0  # TC: no Security Header
+SDLP_ONLY_TC_SDLS_TRL_LENGTH = 0  # TC: no MAC
+SDLP_ONLY_TC_MAX_PACKET_LENGTH = TCTF_MAX_FRAME_LENGTH - TCTF_PRIHDR_LENGTH - TC_FECF_LENGTH
+SDLP_ONLY_TM_SDLS_HDR_LENGTH = 0  # TM: no Security Header
+SDLP_ONLY_TM_SDLS_TRL_LENGTH = 0  # TM: no MAC
+SDLP_ONLY_TM_DATA_OFFSET = TMTF_PRIHDR_LENGTH + SDLP_ONLY_TM_SDLS_HDR_LENGTH
+SDLP_ONLY_TM_DATA_END = TM_FRAME_SIZE
+
+
+def frame_layout(sdlp_only):
+    """(tc_hdr, tc_trl, tm_hdr, tm_trl) Security Header / Trailer lengths for a mode."""
+    if sdlp_only:
+        return (SDLP_ONLY_TC_SDLS_HDR_LENGTH, SDLP_ONLY_TC_SDLS_TRL_LENGTH,
+                SDLP_ONLY_TM_SDLS_HDR_LENGTH, SDLP_ONLY_TM_SDLS_TRL_LENGTH)
+    return (TC_SDLS_HDR_LENGTH, TC_SDLS_TRL_LENGTH, TM_SDLS_HDR_LENGTH, TM_SDLS_TRL_LENGTH)
 
 
 # SDLS frame protection (include/sdls/sdls_my.h)

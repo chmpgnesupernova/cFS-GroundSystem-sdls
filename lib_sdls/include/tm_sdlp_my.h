@@ -26,10 +26,18 @@
 
 #define TM_SDLP_MY_FRAME_SIZE 1786
 
-/* SDLS Security Header right after the Primary Header (SPI 2 + IV 12 bytes) and the
+#ifdef SDLS_MY_SDLP_ONLY
+/* SDLP-only: no Security Header and no Trailer. The packets start right after the
+ * Primary Header and the data field runs to the frame end, as the SDLP-only satellite
+ * TO frames it (to_lab TM_SDLP_MY_SDLS_HDR_LENGTH 0, TRL_LENGTH 0). */
+#define TM_SDLP_MY_SDLS_HDR_LENGTH 0
+#define TM_SDLP_MY_SDLS_TRL_LENGTH 0
+#else
+/* SDLS: Security Header right after the Primary Header (SPI 2 + IV 12 bytes) and the
  * Security Trailer (16 byte MAC) at the frame end. The same layout for every SA. */
 #define TM_SDLP_MY_SDLS_HDR_LENGTH SECHDR_MY_LENGTH
 #define TM_SDLP_MY_SDLS_TRL_LENGTH SDLS_MY_TRAILER_LENGTH
+#endif
 
 /* Data field position inside the frame. */
 #define TM_SDLP_MY_DATA_OFFSET (TMTF_MY_PRIHDR_LENGTH + TM_SDLP_MY_SDLS_HDR_LENGTH)
@@ -69,8 +77,8 @@
  * Returns the packet size (> 0), 0 when the frame has no more packets
  * (the idle packet or the data field end was reached), or a negative error code.
  *
- * SDLP-only build (SDLP_myGetMode): no SA DB and no SDLS; the Security Header and
- * Trailer are ignored and *pSpi is the SPI as written. Everything below is the SDLS build.
+ * SDLP-only build (SDLP_myGetMode): no SA DB and no SDLS; the frame has no Security
+ * Header or Trailer and *pSpi is set to 0. Everything below is the SDLS build.
  * Needs SA_myOpen (sa/sa_shm_my.h) in this process first. The SPI must name an
  * Operational TM SA: SA10 (EP PDUs, IV and MAC ignored) or SA11 (session: the IV must be
  * a new ARSN within the window and the MAC must verify). The ARSN is recorded only after

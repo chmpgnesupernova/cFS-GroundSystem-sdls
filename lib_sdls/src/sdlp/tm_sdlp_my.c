@@ -29,9 +29,9 @@ static int32_t TM_SDLP_myCheckFrame(uint8_t *pFrame, size_t frameSize, uint16_t 
     }
 
 #ifdef SDLS_MY_SDLP_ONLY
-    /* SDLP-only build: the Security Header and Trailer are dummy fields and are not
-     * checked. The SPI is still reported as written (0 from an SDLP-only satellite). */
-    *pSpi = (uint16_t)((pFrame[TMTF_MY_PRIHDR_LENGTH] << 8) | pFrame[TMTF_MY_PRIHDR_LENGTH + 1]);
+    /* SDLP-only build: no Security Header and no Trailer, so there is nothing to check
+     * and no SPI in the frame; report 0. */
+    *pSpi = 0;
 #else
     /* SDLS: SPI names an Operational TM SA; a session frame must be a new ARSN within the
      * window and pass the MAC, and is decrypted in place. GVCID is not matched against

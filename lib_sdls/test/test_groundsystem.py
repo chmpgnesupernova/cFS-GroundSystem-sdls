@@ -81,7 +81,7 @@ class MiniCmdUtilTest(unittest.TestCase):
         self.assertEqual(read_log(self.log)[0]["result"], "FAIL")
 
     def test_no_send_for_a_command_too_long_for_one_frame(self):
-        self.assertFalse(self.mcu('--string="1000:A"').send_packet())
+        self.assertFalse(self.mcu('--string="1100:A"').send_packet())
         with self.assertRaises(socket.timeout):
             self.rx.recvfrom(2048)
         self.assertEqual(read_log(self.log)[0]["err"], "TC_SDLP_MY_INVALID_LENGTH")

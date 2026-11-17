@@ -6,6 +6,10 @@
                        frame fields in color on a terminal: Primary Header cyan, SPI/IV
                        yellow, Data white, MAC magenta, Space Packet header green
 
+Frame layout depends on the build (CMake SDLS_SDLP_ONLY), see LAYOUTS:
+    SDLP-only  TC [PriHdr 5][SPP]                    TM [PriHdr 6][SPPs + idle]
+    SDLS       TC [PriHdr 5][SecHdr 14][SPP][MAC 16]  TM [PriHdr 6][SecHdr 14][SPPs + idle][MAC 16]
+
 Every call writes one line to the log file with the raw bytes before and after processing.
 The monitor follows that file and prints each line decoded. The GUI is not involved:
 RoutingService still publishes plain Space Packets, and a failure here only drops that
@@ -46,6 +50,23 @@ TM_FRAME_SIZE = 1786
 SECHDR_LENGTH = 14  # SPI 2 + IV 12
 TRAILER_LENGTH = 16  # MAC
 SPP_HDR_LENGTH = 6
+
+# Security Header / Trailer lengths per build mode (TC_SDLP_MY_SDLS_HDR/TRL_LENGTH,
+# TM_SDLP_MY_SDLS_HDR/TRL_LENGTH). SDLP-only follows the SDLP-only satellite: TC and TM
+# frames are the Primary Header and the packets only.
+LAYOUTS = {
+    MODE_SDLP_ONLY: {"tc_sechdr": 0, "tc_trailer": 0, "tm_sechdr": 0, "tm_trailer": 0},
+    MODE_SDLS: {"tc_sechdr": SECHDR_LENGTH, "tc_trailer": TRAILER_LENGTH,
+                "tm_sechdr": SECHDR_LENGTH, "tm_trailer": TRAILER_LENGTH},
+}
+
+
+def layout(mode=MODE_SDLS):
+    """Frame layout for a build mode, given as MODE_* or its name ('SDLP-only', 'SDLS').
+    An unknown name (an old or broken log line) gets the SDLS layout."""
+    if isinstance(mode, str):
+        mode = next((m for m, name in MODE_NAMES.items() if name == mode), MODE_SDLS)
+    return LAYOUTS.get(mode, LAYOUTS[MODE_SDLS])
 
 TC_ERRORS = {
     -2: "TC_SDLP_MY_INVALID_ARGUMENT",
@@ -279,21 +300,29 @@ def legend(paint):
     return "Legend: " + "  ".join(paint(kind, f"[{name}]") for kind, name in LEGEND)
 
 
-def _frame_regions(size, prihdr_len):
-    """(start, end, kind) for [PriHdr][SPI 2][IV 12][Data][MAC 16]."""
-    sec_end = prihdr_len + SECHDR_LENGTH
-    if size < sec_end + TRAILER_LENGTH:
+def _frame_regions(size, prihdr_len, sechdr_len, trailer_len):
+    """(start, end, kind) for [PriHdr][SPI 2][IV 12][Data][MAC 16], leaving out the
+    Security Header and/or MAC when the layout has none."""
+    sec_end = prihdr_len + sechdr_len
+    if size < sec_end + trailer_len:
         return [(0, size, "data")]
-    return [(0, prihdr_len, "prihdr"), (prihdr_len, prihdr_len + 2, "spi"), (prihdr_len + 2, sec_end, "iv"),
-            (sec_end, size - TRAILER_LENGTH, "data"), (size - TRAILER_LENGTH, size, "mac")]
+    regions = [(0, prihdr_len, "prihdr")]
+    if sechdr_len:
+        regions += [(prihdr_len, prihdr_len + 2, "spi"), (prihdr_len + 2, sec_end, "iv")]
+    regions.append((sec_end, size - trailer_len, "data"))
+    if trailer_len:
+        regions.append((size - trailer_len, size, "mac"))
+    return regions
 
 
-def tc_frame_regions(size):
-    return _frame_regions(size, TC_PRIHDR_LENGTH)
+def tc_frame_regions(size, mode=MODE_SDLS):
+    lay = layout(mode)
+    return _frame_regions(size, TC_PRIHDR_LENGTH, lay["tc_sechdr"], lay["tc_trailer"])
 
 
-def tm_frame_regions(size):
-    return _frame_regions(size, TM_PRIHDR_LENGTH)
+def tm_frame_regions(size, mode=MODE_SDLS):
+    lay = layout(mode)
+    return _frame_regions(size, TM_PRIHDR_LENGTH, lay["tm_sechdr"], lay["tm_trailer"])
 
 
 def spp_regions(size):
@@ -315,43 +344,50 @@ def decode_spp(data):
             f"len {int.from_bytes(data[4:6], 'big') + 7}")
 
 
-def _sechdr_parts(sec, trailer):
-    spi = int.from_bytes(sec[0:2], "big")
-    iv = int.from_bytes(sec[2:14], "big")
-    zero = "zero" if not any(trailer) else "non-zero"
-    return f"SPI 0x{spi:04x}", f"IV {iv}", f"MAC {zero}"
+def _sec_parts(frame, prihdr_len, sechdr_len, trailer_len):
+    """['SPI ..', 'IV ..', 'MAC ..'] for the fields the layout has."""
+    parts = []
+    if sechdr_len:
+        sec = frame[prihdr_len : prihdr_len + sechdr_len]
+        parts += [("spi", f"SPI 0x{int.from_bytes(sec[0:2], 'big'):04x}"),
+                  ("iv", f"IV {int.from_bytes(sec[2:14], 'big')}")]
+    else:
+        parts.append(("spi", "no Security Header"))
+    if trailer_len:
+        parts.append(("mac", f"MAC {'zero' if not any(frame[-trailer_len:]) else 'non-zero'}"))
+    else:
+        parts.append(("mac", "no MAC"))
+    return parts
 
 
-def _tc_frame_parts(frame):
+def _tc_head(frame):
     o0, o1, o2, o3, seq = frame[0:5]
-    head = (f"TFVN {o0 >> 6} bypass {(o0 >> 5) & 1} ctl {(o0 >> 4) & 1} "
+    return (f"TFVN {o0 >> 6} bypass {(o0 >> 5) & 1} ctl {(o0 >> 4) & 1} "
             f"SCID 0x{((o0 & 3) << 8) | o1:03x} VCID {o2 >> 2} "
             f"len {(((o2 & 3) << 8) | o3) + 1} seq {seq}")
-    sec = frame[TC_PRIHDR_LENGTH : TC_PRIHDR_LENGTH + SECHDR_LENGTH]
-    return (head, *_sechdr_parts(sec, frame[-TRAILER_LENGTH:]))
 
 
-def _tm_frame_parts(frame):
+def _tm_head(frame):
     id0, id1, mc, vc, dfs0, dfs1 = frame[0:6]
-    head = (f"TFVN {id0 >> 6} SCID 0x{((id0 & 0x3F) << 4) | (id1 >> 4):03x} VCID {(id1 >> 1) & 7} "
+    return (f"TFVN {id0 >> 6} SCID 0x{((id0 & 0x3F) << 4) | (id1 >> 4):03x} VCID {(id1 >> 1) & 7} "
             f"MC {mc} VC {vc} FHP {((dfs0 & 7) << 8) | dfs1}")
-    sec = frame[TM_PRIHDR_LENGTH : TM_PRIHDR_LENGTH + SECHDR_LENGTH]
-    return (head, *_sechdr_parts(sec, frame[-TRAILER_LENGTH:]))
 
 
-def _decode_frame(frame, parts, prihdr_len, name, paint):
-    if len(frame) < prihdr_len + SECHDR_LENGTH + TRAILER_LENGTH:
+def _decode_frame(frame, head, prihdr_len, sechdr_len, trailer_len, name, paint):
+    if len(frame) < prihdr_len + sechdr_len + trailer_len:
         return f"({len(frame)} B, too short for a {name} frame)"
-    head, spi, iv, mac = parts(frame)
-    return f"{paint('prihdr', head)} | {paint('spi', spi)} {paint('iv', iv)} {paint('mac', mac)}"
+    parts = " ".join(paint(kind, text) for kind, text in _sec_parts(frame, prihdr_len, sechdr_len, trailer_len))
+    return f"{paint('prihdr', head(frame))} | {parts}"
 
 
-def decode_tc_frame(frame, paint=_Paint(False)):
-    return _decode_frame(frame, _tc_frame_parts, TC_PRIHDR_LENGTH, "TC", paint)
+def decode_tc_frame(frame, paint=_Paint(False), mode=MODE_SDLS):
+    lay = layout(mode)
+    return _decode_frame(frame, _tc_head, TC_PRIHDR_LENGTH, lay["tc_sechdr"], lay["tc_trailer"], "TC", paint)
 
 
-def decode_tm_frame(frame, paint=_Paint(False)):
-    return _decode_frame(frame, _tm_frame_parts, TM_PRIHDR_LENGTH, "TM", paint)
+def decode_tm_frame(frame, paint=_Paint(False), mode=MODE_SDLS):
+    lay = layout(mode)
+    return _decode_frame(frame, _tm_head, TM_PRIHDR_LENGTH, lay["tm_sechdr"], lay["tm_trailer"], "TM", paint)
 
 
 def _hex_row(data, start, end, regions, paint):
@@ -402,6 +438,8 @@ def format_entry(entry, show_hex=True, hex_limit=128, color=False):
     if not ok:
         head += "  " + paint("fail", f"{entry.get('err', '?')} ({entry.get('code', '?')})")
     lines = [head]
+    mode = entry.get("mode", MODE_NAMES[MODE_SDLS])
+    lay = layout(mode)
     data_in = _unhex(entry.get("in"))
     outs = [_unhex(v) for v in entry.get("out", "-").split(",") if v != "-"]
 
@@ -412,11 +450,11 @@ def format_entry(entry, show_hex=True, hex_limit=128, color=False):
         lines.append(f"  before  Space Packet {len(data_in):4d} B  {paint('spphdr', decode_spp(data_in))}")
         lines += dump(data_in, spp_regions(len(data_in)))
         for frame in outs:
-            lines.append(f"  after   TC frame     {len(frame):4d} B  {decode_tc_frame(frame, paint)}")
-            lines += dump(frame, tc_frame_regions(len(frame)), TRAILER_LENGTH)
+            lines.append(f"  after   TC frame     {len(frame):4d} B  {decode_tc_frame(frame, paint, mode)}")
+            lines += dump(frame, tc_frame_regions(len(frame), mode), lay["tc_trailer"])
     else:
-        lines.append(f"  before  TM frame     {len(data_in):4d} B  {decode_tm_frame(data_in, paint)}")
-        lines += dump(data_in, tm_frame_regions(len(data_in)), TRAILER_LENGTH)
+        lines.append(f"  before  TM frame     {len(data_in):4d} B  {decode_tm_frame(data_in, paint, mode)}")
+        lines += dump(data_in, tm_frame_regions(len(data_in), mode), lay["tm_trailer"])
         for i, packet in enumerate(outs, 1):
             lines.append(f"  after   packet {i:<3d}   {len(packet):4d} B  {paint('spphdr', decode_spp(packet))}")
             lines += dump(packet, spp_regions(len(packet)))

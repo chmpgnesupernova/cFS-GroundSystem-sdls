@@ -152,14 +152,19 @@ def tc_header_fields(frame):
     }
 
 
-def sat_tc_extract_packet(frame, tc_key=None):
+def sat_tc_extract_packet(frame, tc_key=None, sdlp_only=None):
     """Mirrors TC_SDLP_myExtractPacket. Returns the packet or raises SatTcDrop.
 
     A frame on the session SA (SA01) is MAC checked and decrypted with tc_key; a frame on
-    the EP SA (SA00) carries its packet in clear."""
+    the EP SA (SA00) carries its packet in clear.
+    sdlp_only: an SDLP-only satellite (ci_lab with Security Header and Trailer length 0):
+    the packet follows the Primary Header directly. None: the same mode as libsdls.so."""
+    if sdlp_only is None:
+        sdlp_only = b.sdlp_only_build()
+    hdr_len, trl_len, _, _ = b.frame_layout(sdlp_only)
     frame_size = len(frame)
-    data_offset = b.TCTF_PRIHDR_LENGTH + b.TC_SDLS_HDR_LENGTH
-    packet_size = frame_size - data_offset - b.TC_SDLS_TRL_LENGTH - b.TC_FECF_LENGTH
+    data_offset = b.TCTF_PRIHDR_LENGTH + hdr_len
+    packet_size = frame_size - data_offset - trl_len - b.TC_FECF_LENGTH
 
     if packet_size < b.TC_SPP_MIN_LENGTH:
         raise SatTcDrop(f"too short ({frame_size})")
@@ -169,8 +174,10 @@ def sat_tc_extract_packet(frame, tc_key=None):
         raise SatTcDrop(f"length field {hdr['framelen'] + 1} != received {frame_size}")
 
     data = frame[data_offset : data_offset + packet_size]
-    sec = tc_sechdr_fields(frame)
-    if sec["spi"] == b.SPI_SA01:
+    sec = tc_sechdr_fields(frame) if not sdlp_only else {"spi": None}
+    if sdlp_only:
+        pass  # no Security Header: nothing to check or decrypt
+    elif sec["spi"] == b.SPI_SA01:
         if tc_key is None:
             raise SatTcDrop("session frame but no TC key")
         hdr_end = b.TCTF_PRIHDR_LENGTH
@@ -208,7 +215,7 @@ class SatTmFramer:
     spi: SA written into every Security Header. SPI_SA10 (EP PDUs) zero fills the IV and
     the MAC; any other SA sends first_iv, first_iv + 1, ... (one per frame, like the
     satellite SA11 send side), and with key set encrypts the data field (AES-256-GCM).
-    sdlp_only: an SDLP-only satellite, Security Header and Trailer zero filled.
+    sdlp_only: an SDLP-only satellite (to_lab): no Security Header and no Trailer.
     """
 
     def __init__(
@@ -222,8 +229,10 @@ class SatTmFramer:
         sdlp_only=False,
     ):
         # TM_SDLP_myInit
-        self.data_field_offset = b.TMTF_PRIHDR_LENGTH + b.TM_SDLS_HDR_LENGTH
-        self.data_field_length = b.TM_FRAME_SIZE - self.data_field_offset - b.TM_SDLS_TRL_LENGTH
+        _, _, hdr_len, self.trl_len = b.frame_layout(sdlp_only)
+        self.data_field_offset = b.TMTF_PRIHDR_LENGTH + hdr_len
+        self.data_field_end = b.TM_FRAME_SIZE - self.trl_len
+        self.data_field_length = self.data_field_end - self.data_field_offset
         self.free_octets = self.data_field_length
         self.mc_frame_count = 0
         self.frame = bytearray(b.TM_FRAME_SIZE)
@@ -232,7 +241,7 @@ class SatTmFramer:
         self.spi = spi
         self.next_iv = first_iv
         self.key = key
-        self.sdlp_only = sdlp_only  # SDLP-only satellite: Security Header and Trailer all zero
+        self.sdlp_only = sdlp_only  # SDLP-only satellite: no Security Header, no Trailer
 
         # TMTF_MY_WR_TF_VERSION / SCID / VCID / SEGLENGTHID / FIRSTHDRPTR(0)
         self.frame[0] = ((tfvn & 0x03) << 6) | ((scid >> 4) & 0x3F)
@@ -260,9 +269,7 @@ class SatTmFramer:
 
     def _write_sechdr(self):
         if self.sdlp_only:
-            start = b.TMTF_PRIHDR_LENGTH
-            self.frame[start : start + b.SECHDR_LENGTH] = bytes(b.SECHDR_LENGTH)
-            return 0
+            return 0  # no Security Header
         if self.spi == b.SPI_SA10:
             iv = 0
         else:
@@ -276,9 +283,9 @@ class SatTmFramer:
 
     def _protect(self, iv):
         """Security Trailer: GCM over the data field for a keyed session SA, else zeros."""
-        end = b.TM_DATA_END
+        end = self.data_field_end
         if self.sdlp_only or self.spi == b.SPI_SA10 or self.key is None:
-            self.frame[end:] = bytes(b.TM_SDLS_TRL_LENGTH)
+            self.frame[end:] = bytes(self.trl_len)
             return
         hdr_end = b.TMTF_PRIHDR_LENGTH
         aad = masked(self.frame[:hdr_end], TM_AUTH_MASK) + bytes(self.frame[hdr_end : hdr_end + b.SECHDR_LENGTH])
