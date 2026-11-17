@@ -28,3 +28,14 @@ libsdls.so 를 빌드, build 디렉토리에 라이브러리 위치
 
 CMakeLists.txt 에서 다음과 같이 설정.
 `option(SDLS_SDLP_ONLY "Build SDLP framing only (Security Header/Trailer zero filled)" ON)`
+
+## cFS <--> GS
+테스트 완료
+
+<img width="1987" height="547" alt="스크린샷 2026-11-17 19-45-31" src="https://github.com/user-attachments/assets/197f0d30-b602-4ae0-8e6f-0fb7d36b9471" />
+
+cFS -> GS
+
+<img width="2203" height="247" alt="스크린샷 2026-11-17 19-47-00" src="https://github.com/user-attachments/assets/7a5835f6-2a2e-445a-ad2e-d67b502e7659" />
+
+GS -> cFS
