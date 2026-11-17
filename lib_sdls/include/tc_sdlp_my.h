@@ -59,9 +59,22 @@
  * Call once before TC_SDLP_myBuildFrame. Returns TC_SDLP_MY_SUCCESS. */
 int32_t TC_SDLP_myInit(void);
 
+/* Build mode, fixed at compile time (CMake SDLS_SDLP_ONLY):
+ *   SDLP_MY_MODE_SDLP_ONLY : frames only. The Security Header (14 B) and Trailer (16 B)
+ *                            are zero filled on send and ignored on receive; no SA DB,
+ *                            no crypto library. TC_SDLP_myBuildFrame ignores spi and
+ *                            TM_SDLP_myExtractPacket reports the SPI as written.
+ *   SDLP_MY_MODE_SDLS      : full SDLS (sdls/sdls_my.h): SA DB, AES-GCM, key exchange.
+ * The frame layout is the same in both, so either side can be switched later without
+ * changing the other's frame parsing. */
+#define SDLP_MY_MODE_SDLP_ONLY 1
+#define SDLP_MY_MODE_SDLS      2
+int32_t SDLP_myGetMode(void);
+
 /* Wraps one Space Packet into a TC frame written to pBuf.
- * Needs SA_myOpen (sa/sa_shm_my.h) in this process first.
- * spi        : SA that protects the frame. COMMON_SPI_SA00 for EP PDUs (always usable,
+ * SDLS build: needs SA_myOpen (sa/sa_shm_my.h) in this process first.
+ * SDLP-only build: no SA DB; the Security Header and Trailer are zero filled.
+ * spi        : SA that protects the frame (ignored in an SDLP-only build). COMMON_SPI_SA00 for EP PDUs (always usable,
  *              not encrypted), COMMON_SPI_SA01 for session traffic (Operational after
  *              key exchange; AES-256-GCM, every frame takes a fresh IV).
  * pPacket    : one complete Space Packet (header + data)

@@ -54,6 +54,7 @@ class DecoderTest(unittest.TestCase):
         self.assertEqual(sum(len(p) for _, p in parts), len(data))
 
 
+@unittest.skipIf(b.sdlp_only_build(), "SDLP-only build: the viewer brings up SDLS SAs")
 class ViewerRunTest(unittest.TestCase):
     def test_viewer_prints_every_section(self):
         out = io.StringIO()

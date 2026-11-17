@@ -21,19 +21,26 @@
 #
 
 import socket
+import sys
+from pathlib import Path
 from struct import unpack
 from time import sleep
 
 import zmq
 from PyQt5.QtCore import QThread, pyqtSignal
 
+# lib_sdls (repository top level): telemetry arrives as TM frames.
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib_sdls"))
+import sdlp_link  # noqa: E402
+
 # Receive port where the CFS TO_Lab app sends the telemetry packets
 udp_recv_port = 1235
 
 
 #
-# Receive telemetry packets, apply the appropriate header
-# and publish the message with zeroMQ
+# Receive TM frames, take the telemetry packets out of them (lib_sdls),
+# apply the appropriate header and publish each packet with zeroMQ.
+# Subscribers (the telemetry GUI) receive plain Space Packets as before.
 #
 class RoutingService(QThread):
     # Signal to update the spacecraft combo box (list) on main window GUI
@@ -72,12 +79,17 @@ class RoutingService(QThread):
                     datagram, host = self.sock.recvfrom(
                         4096)  # buffer size is 1024 bytes
 
-                    # Ignore datagram if it is not long enough (doesn't contain tlm header?)
-                    if len(datagram) < 6:
-                        continue
-
                     # Read host address
                     host_ip_address = host[0]
+
+                    # SDLP: one TM frame -> its Space Packets (idle packets left out).
+                    # A frame that cannot be taken apart is dropped; the reason is in
+                    # the sdlp_link log, and this is not a socket error.
+                    try:
+                        packets = sdlp_link.decapsulate_tm(datagram, host=host_ip_address,
+                                                           source="RoutingService")
+                    except sdlp_link.SdlpError:
+                        continue
 
                     #
                     # Add Host to the list if not already in list
@@ -93,10 +105,11 @@ class RoutingService(QThread):
                         self.signal_update_ip_list.emit(host_ip_address,
                                                         my_hostname_as_bytes)
 
-                    # Forward the message using zeroMQ
+                    # Forward each packet using zeroMQ
                     name = self.spacecraft_names[self.ip_addresses_list.index(
                         host_ip_address)]
-                    self.forwardMessage(datagram, name)
+                    for packet in packets:
+                        self.forwardMessage(packet, name)
 
                 # Handle errors
                 except socket.error:

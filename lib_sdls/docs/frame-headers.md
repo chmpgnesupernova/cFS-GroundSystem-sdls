@@ -7,6 +7,16 @@
 - 기준 표준: CCSDS 232.0 (TC SDLP), 132.0 (TM SDLP), 355.0 (SDLS), 355.1 (SDLS-EP)
 - 범례: ✅ 구현 · ⚠️ 부분 구현 또는 고정값 · ❌ 미구현
 
+## 0. 빌드 모드 (CMake `SDLS_SDLP_ONLY`)
+
+| 모드 | 기본값 | Security Header / Trailer | 빌드되는 것 |
+|---|---|---|---|
+| SDLP-only | ✅ ON | 송신: 0으로 채움 / 수신: 검사하지 않음 (`*pSpi`에는 적힌 값) | `src/sdlp`만. SA DB, crypto, wolfSSL 없음 |
+| SDLS | OFF | 아래 4·5장대로 SA가 처리 | 전부 |
+
+프레임 레이아웃(헤더 14 B, Trailer 16 B 자리)은 두 모드가 같습니다. 모드는 `SDLP_myGetMode()`로 확인합니다.
+아래 4장 이후의 SA·암호화·키 교환 내용은 SDLS 모드에만 해당합니다.
+
 ---
 
 ## 1. 프레임 구성

@@ -23,7 +23,13 @@
 
 import mmap
 import socket
+import sys
 from collections import namedtuple
+from pathlib import Path
+
+# lib_sdls (repository top level): every command goes out as a TC frame.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib_sdls"))
+import sdlp_link  # noqa: E402
 
 
 class MiniCmdUtil:
@@ -142,7 +148,14 @@ class MiniCmdUtil:
             if (i + 1) % 8 == 0:
                 print()
         print()
-        bytes_sent = self.sock.sendto(self.packet, (self.host, self.port))
+        # SDLP: wrap the Space Packet into a TC frame. No frame, no send: the satellite
+        # only accepts frames. Both the packet and the frame go to the sdlp_link log.
+        try:
+            frame = sdlp_link.encapsulate_tc(self.packet, source="MiniCmdUtil")
+        except sdlp_link.SdlpError as exc:
+            print(f"SDLP: command not sent: {exc}")
+            return False
+        bytes_sent = self.sock.sendto(frame, (self.host, self.port))
         return bytes_sent > 0
 
     def _get_offsets(self):

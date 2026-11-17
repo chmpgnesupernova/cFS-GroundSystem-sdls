@@ -2,7 +2,8 @@
  * TM_SDLP_myForwardPacket (reduced from io_lib tm_sdlp.c). */
 #include "tm_sdlp_my.h"
 
-/* Checks the frame level fields the SAT side always writes, then hands the frame to SDLS. */
+/* Checks the frame level fields the SAT side always writes, then hands the frame to SDLS
+ * (or, in an SDLP-only build, just reads the dummy SPI). */
 static int32_t TM_SDLP_myCheckFrame(uint8_t *pFrame, size_t frameSize, uint16_t *pSpi)
 {
     const TMTF_my_PriHdr_t *pHdr = (const TMTF_my_PriHdr_t *)pFrame;
@@ -27,6 +28,11 @@ static int32_t TM_SDLP_myCheckFrame(uint8_t *pFrame, size_t frameSize, uint16_t 
         return TM_SDLP_MY_INVALID_HEADER;
     }
 
+#ifdef SDLS_MY_SDLP_ONLY
+    /* SDLP-only build: the Security Header and Trailer are dummy fields and are not
+     * checked. The SPI is still reported as written (0 from an SDLP-only satellite). */
+    *pSpi = (uint16_t)((pFrame[TMTF_MY_PRIHDR_LENGTH] << 8) | pFrame[TMTF_MY_PRIHDR_LENGTH + 1]);
+#else
     /* SDLS: SPI names an Operational TM SA; a session frame must be a new ARSN within the
      * window and pass the MAC, and is decrypted in place. GVCID is not matched against
      * the SA (dummy channel IDs). */
@@ -34,6 +40,7 @@ static int32_t TM_SDLP_myCheckFrame(uint8_t *pFrame, size_t frameSize, uint16_t 
     {
         return TM_SDLP_MY_SECURITY_ERROR;
     }
+#endif
 
     return TM_SDLP_MY_SUCCESS;
 }
