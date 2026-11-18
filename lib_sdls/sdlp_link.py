@@ -82,6 +82,7 @@ TM_ERRORS = {
     -4: "TM_SDLP_MY_INVALID_PACKET",
     -5: "TM_SDLP_MY_INVALID_HEADER",
     -6: "TM_SDLP_MY_SECURITY_ERROR",
+    -7: "TM_SDLP_MY_NO_FRAME",
 }
 LIB_ERROR = "LIB_NOT_LOADED"
 
@@ -125,6 +126,14 @@ def _load():
     lib.TC_SDLP_myBuildFrame.restype = i32
     lib.TM_SDLP_myExtractPacket.argtypes = [p, n, ctypes.POINTER(n), ctypes.POINTER(n), ctypes.POINTER(ctypes.c_uint16)]
     lib.TM_SDLP_myExtractPacket.restype = i32
+    lib.TM_SDLP_myRxSize.argtypes, lib.TM_SDLP_myRxSize.restype = [], n
+    lib.TM_SDLP_myRxInit.argtypes, lib.TM_SDLP_myRxInit.restype = [p], None
+    lib.TM_SDLP_myRxPutFrame.argtypes = [p, p, n, ctypes.POINTER(ctypes.c_uint16)]
+    lib.TM_SDLP_myRxPutFrame.restype = i32
+    lib.TM_SDLP_myRxNextPacket.argtypes = [p, ctypes.POINTER(ctypes.POINTER(ctypes.c_ubyte))]
+    lib.TM_SDLP_myRxNextPacket.restype = i32
+    u32p = ctypes.POINTER(ctypes.c_uint32)
+    lib.TM_SDLP_myRxGetStats.argtypes, lib.TM_SDLP_myRxGetStats.restype = [p, u32p, u32p], None
 
     mode = lib.SDLP_myGetMode()
     if lib.TC_SDLP_myInit() != 0:
@@ -183,9 +192,38 @@ def encapsulate_tc(spp, source="MiniCmdUtil"):
     return frame
 
 
-def decapsulate_tm(frame, host=None, source="RoutingService"):
-    """TM frame -> list of Space Packets (idle packets left out). Raises SdlpError (and
-    logs it) for a frame that cannot be taken apart; the caller drops it."""
+class _TmStream:
+    """One TM receive stream (TM_SDLP_myRx_t): joins packets across the frames of one sender."""
+
+    def __init__(self, lib):
+        self.ctx = ctypes.create_string_buffer(lib.TM_SDLP_myRxSize())
+        self.frame = None  # the current frame's buffer; returned packets may point into it
+        lib.TM_SDLP_myRxInit(self.ctx)
+
+    def stats(self, lib):
+        lost, dropped = ctypes.c_uint32(0), ctypes.c_uint32(0)
+        lib.TM_SDLP_myRxGetStats(self.ctx, ctypes.byref(lost), ctypes.byref(dropped))
+        return lost.value, dropped.value
+
+
+_tm_streams = {}  # stream key -> _TmStream
+
+
+def reset_tm_streams():
+    """Forgets every TM receive stream (packets being joined and the frame counts)."""
+    with _lock:
+        _tm_streams.clear()
+
+
+def decapsulate_tm(frame, host=None, source="RoutingService", stream=None):
+    """TM frame -> list of the Space Packets completed in it (idle packets left out).
+
+    Frames of one sender form a stream (TM_SDLP_myRx*): a packet that runs on into the
+    next frame (First Header Pointer) is returned with the frame that completes it. The
+    stream is chosen by `stream`, else by `host`; give each sender its own.
+    Lost frames (Master Channel Frame Count) drop only the packet being joined; the log line
+    then carries lost=<frames> and drop=<packets>.
+    Raises SdlpError (and logs it) for a frame that is refused; the caller drops it."""
     frame = bytes(frame)
     base = {"host": host} if host else {}
     with _lock:
@@ -194,19 +232,32 @@ def decapsulate_tm(frame, host=None, source="RoutingService"):
         except SdlpError as exc:
             _log("TM", False, source, dict(base, code="-", err=exc.name), frame, [])
             raise
-    buf = ctypes.create_string_buffer(frame, max(len(frame), 1))  # writable: SDLS decrypts in place
-    cursor, offset, spi = ctypes.c_size_t(0), ctypes.c_size_t(0), ctypes.c_uint16(0)
-    packets = []
-    while True:
-        status = lib.TM_SDLP_myExtractPacket(buf, len(frame), ctypes.byref(cursor), ctypes.byref(offset), ctypes.byref(spi))
-        if status <= 0:
-            break
-        packets.append(buf.raw[offset.value : offset.value + status])
+        key = stream if stream is not None else (host or "")
+        rx = _tm_streams.get(key)
+        if rx is None:
+            rx = _tm_streams[key] = _TmStream(lib)
+        lost0, dropped0 = rx.stats(lib)
+
+        buf = ctypes.create_string_buffer(frame, max(len(frame), 1))  # writable: SDLS decrypts in place
+        spi = ctypes.c_uint16(0)
+        status = lib.TM_SDLP_myRxPutFrame(rx.ctx, buf, len(frame), ctypes.byref(spi))
+        packets = []
+        if status == 0:
+            rx.frame = buf  # keep it alive while the stream may point into it
+            ptr = ctypes.POINTER(ctypes.c_ubyte)()
+            while (size := lib.TM_SDLP_myRxNextPacket(rx.ctx, ctypes.byref(ptr))) > 0:
+                packets.append(ctypes.string_at(ptr, size))
+        lost, dropped = (a - b for a, b in zip(rx.stats(lib), (lost0, dropped0)))
+
     fields = dict(base, spi=f"0x{spi.value:04x}")
     if status < 0:
         name = TM_ERRORS.get(status, "UNKNOWN")
         _log("TM", False, source, dict(fields, code=status, err=name), frame, [])
         raise SdlpError(f"TM frame dropped: {name} ({status})", status, name)
+    if lost:
+        fields["lost"] = lost
+    if dropped:
+        fields["drop"] = dropped
     _log("TM", True, source, fields, frame, packets)
     return packets
 
@@ -370,7 +421,11 @@ def _tc_head(frame):
 def _tm_head(frame):
     id0, id1, mc, vc, dfs0, dfs1 = frame[0:6]
     return (f"TFVN {id0 >> 6} SCID 0x{((id0 & 0x3F) << 4) | (id1 >> 4):03x} VCID {(id1 >> 1) & 7} "
-            f"MC {mc} VC {vc} FHP {((dfs0 & 7) << 8) | dfs1}")
+            f"MC {mc} VC {vc} FHP {_fhp_text(((dfs0 & 7) << 8) | dfs1)}")
+
+
+def _fhp_text(fhp):
+    return {0x7FF: "none (packet continues)", 0x7FE: "idle only"}.get(fhp, str(fhp))
 
 
 def _decode_frame(frame, head, prihdr_len, sechdr_len, trailer_len, name, paint):
@@ -435,6 +490,8 @@ def format_entry(entry, show_hex=True, hex_limit=128, color=False):
             f"{entry.get('src', '?')} {entry.get('mode', '?')}")
     if "host" in entry:
         head += f" from {entry['host']}"
+    if "lost" in entry or "drop" in entry:
+        head += "  " + paint("fail", f"lost {entry.get('lost', 0)} frame(s), dropped {entry.get('drop', 0)} packet(s)")
     if not ok:
         head += "  " + paint("fail", f"{entry.get('err', '?')} ({entry.get('code', '?')})")
     lines = [head]
@@ -459,7 +516,7 @@ def format_entry(entry, show_hex=True, hex_limit=128, color=False):
             lines.append(f"  after   packet {i:<3d}   {len(packet):4d} B  {paint('spphdr', decode_spp(packet))}")
             lines += dump(packet, spp_regions(len(packet)))
         if ok and not outs:
-            lines.append("  after   (no packets: idle frame)")
+            lines.append("  after   (no whole packet ends in this frame: idle, or a packet that goes on)")
     return "\n".join(lines)
 
 

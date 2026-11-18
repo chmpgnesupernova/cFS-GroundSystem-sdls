@@ -324,3 +324,80 @@ class SatTmFramer:
         if self.free_octets == 0:
             self.send_frame()
         return True
+
+
+class SatTmSegmentingFramer(SatTmFramer):
+    """Mirrors the current satellite TO_LAB framing (to_lab feature/tc-tm-sdlp 476f4dc:
+    TM_SDLP_myAddPacketToFrame, TM_SDLP_myFillAndSendFrame, tm_sdlp_of.c).
+
+    Packets go back to back; what does not fit in the frame goes to an overflow queue and
+    starts the next frame. The First Header Pointer is the first packet header that starts
+    in a frame, or 0x7FF (none). A frame sent before it is full gets one idle packet; with
+    fewer than 7 octets left a 7 octet idle packet is split into the next frame.
+    forward_packet / send_frame keep their names (add packet / fill and send)."""
+
+    NO_FIRST_HDR_PTR = 0x7FF
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.queue = []  # [(bytes, starts_a_packet)], continuation first
+        self.fhp = None  # First Header Pointer of the frame being filled
+
+    def _write(self, data, starts_packet):
+        """TM_SDLP_myCopyToFrameOrOverflow: returns the bytes that did not fit."""
+        take = min(len(data), self.free_octets)
+        if take and starts_packet and self.fhp is None:
+            self.fhp = self.current_data_offset - self.data_field_offset
+        start = self.current_data_offset
+        self.frame[start : start + take] = data[:take]
+        self.current_data_offset += take
+        self.free_octets -= take
+        return data[take:]
+
+    def _fill_with_idle(self):
+        if self.free_octets == 0:
+            return
+        if self.free_octets < b.TM_IDLE_MIN_LENGTH:
+            rest = self._write(bytes([0x07, 0xFF, 0xC0, 0, 0, 0, 0]), True)
+            if rest:
+                self.queue.append((rest, False))
+            return
+        if self.fhp is None:
+            self.fhp = self.current_data_offset - self.data_field_offset
+        self._add_idle_packet()
+
+    def _close_and_send(self):
+        fhp = self.NO_FIRST_HDR_PTR if self.fhp is None else self.fhp
+        self.frame[4] = (self.frame[4] & 0xF8) | ((fhp >> 8) & 0x07)
+        self.frame[5] = fhp & 0xFF
+        self._complete_frame()
+        self.sent.append(bytes(self.frame))
+        self.fhp = None
+
+    def _refill(self):
+        """TM_SDLP_myRefillFrameFromOverflow: the queue goes first into the new frame."""
+        while self.queue and self.free_octets:
+            data, starts = self.queue.pop(0)
+            rest = self._write(data, starts)
+            if rest:
+                self.queue.insert(0, (rest, False))
+
+    def send_frame(self):
+        """TM_SDLP_myFillAndSendFrame: an empty frame is not sent."""
+        if self.free_octets == self.data_field_length:
+            return
+        while True:
+            self._fill_with_idle()
+            self._close_and_send()
+            self._refill()
+            if self.free_octets:
+                break
+
+    def forward_packet(self, packet):
+        """TM_SDLP_myAddPacketToFrame."""
+        rest = self._write(bytes(packet), True)
+        if rest:
+            self.queue.append((rest, False))
+        if self.free_octets == 0:
+            self.send_frame()
+        return True
