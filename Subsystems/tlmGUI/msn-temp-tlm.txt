@@ -1,0 +1,9 @@
+#
+# msn-temp-tlm.txt: MSN_APP TEMP (0x08D1), on READ_TEMP and every TEMP_PERIOD HK requests
+# Offset = 12 + payload offset; the Telemetry System adds the TLM header offset (4) on top,
+# so the page reads byte 16 + payload offset (16-byte cFS TLM header). Values are LE.
+#   1. description  2. offset  3. length  4. struct type  5. Dec/Hex/Str/Enm  6-9. enum 0-3
+#
+Temperature (C),         12,  4,  f, Dec, NULL,        NULL,        NULL,       NULL
+Status,                  16,  1,  B, Enm, NORMAL,      HIGH,        LOW,        NO_DATA
+Sample Count,            20,  4,  I, Dec, NULL,        NULL,        NULL,       NULL

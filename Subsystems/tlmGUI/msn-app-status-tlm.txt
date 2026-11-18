@@ -1,0 +1,13 @@
+#
+# msn-app-status-tlm.txt: MSN_APP APP_STATUS (0x08D3), on GET_APP_STATUS
+# Offset = 12 + payload offset; the Telemetry System adds the TLM header offset (4) on top,
+# so the page reads byte 16 + payload offset (16-byte cFS TLM header). Values are LE.
+#   1. description  2. offset  3. length  4. struct type  5. Dec/Hex/Str/Enm  6-9. enum 0-3
+#
+App Name,                12, 20,  s, Str, NULL,        NULL,        NULL,       NULL
+Running,                 32,  1,  B, Enm, NO,          YES,         NULL,       NULL
+Startup,                 33,  1,  B, Enm, NOT IN SCRIPT, ENABLED,   DISABLED,   NULL
+Priority,                36,  4,  I, Dec, NULL,        NULL,        NULL,       NULL
+Stack Size,              40,  4,  I, Dec, NULL,        NULL,        NULL,       NULL
+Execution Counter,       44,  4,  I, Dec, NULL,        NULL,        NULL,       NULL
+Child Tasks,             48,  4,  I, Dec, NULL,        NULL,        NULL,       NULL

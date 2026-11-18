@@ -12,6 +12,10 @@
 #
 Event Messages,            EventMessage.py,         0x808,   null
 File Relay,                FileRelayTelemetry.py,   0x8C2,   null
+MSN HK Tlm,                GenericTelemetry.py,     0x8D0,   msn-hk-tlm.txt
+MSN TEMP Tlm,              GenericTelemetry.py,     0x8D1,   msn-temp-tlm.txt
+MSN DIAG Tlm,              GenericTelemetry.py,     0x8D2,   msn-diag-tlm.txt
+MSN APP_STATUS Tlm,        GenericTelemetry.py,     0x8D3,   msn-app-status-tlm.txt
 ES HK Tlm,                 GenericTelemetry.py,     0x800,   cfe-es-hk-tlm.txt
 EVS HK Tlm,                GenericTelemetry.py,     0x801,   cfe-evs-hk-tlm.txt
 SB HK Tlm,                 GenericTelemetry.py,     0x803,   cfe-sb-hk-tlm.txt
