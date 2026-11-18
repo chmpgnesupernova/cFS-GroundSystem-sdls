@@ -73,16 +73,15 @@ ok()   { printf '\033[1;32mPASS\033[0m %s\n' "$*"; }
 bad()  { printf '\033[1;31mFAIL\033[0m %s\n' "$*"; }
 die()  { printf '\033[1;31mERROR: %s\033[0m\n' "$*" >&2; exit 2; }
 
-abspath() { (cd "$1" 2>/dev/null && pwd) || die "no such directory: $1"; }
-CFS_DIR="$(abspath "$CFS_DIR")"
-GS_DIR="$(abspath "$GS_DIR")"
+abspath() { (cd "$1" 2>/dev/null && pwd); }
+CFS_ARG="$CFS_DIR"
+CFS_DIR="$(abspath "$CFS_ARG")" || die "satellite cFS not found at --cfs '$CFS_ARG' (relative to $(pwd)).
+Give the folder build_peer_cfs.sh made, e.g. --cfs ~/cFS-peer; it must hold $BUILD/exe/cpu1/core-cpu1"
+GS_DIR="$(abspath "$GS_DIR")" || die "no such directory: --gs $GS_DIR"
 EXE="$CFS_DIR/$BUILD/exe/cpu1"
 A_DIR="$CFS_DIR/file_dl_test"
 FILE_RX="$GS_DIR/lib_sdls/file_rx.py"
 LIB="${SDLS_LIB:-$GS_DIR/lib_sdls/build/libsdls.so}"
-OUT="${OUT:-./e2e_result_$(date +%Y%m%d_%H%M%S)}"
-mkdir -p "$OUT/received"
-OUT="$(abspath "$OUT")"
 
 # ---------------------------------------------------------------- checks
 step "Checking the pieces"
@@ -116,6 +115,9 @@ if command -v sysctl >/dev/null && [[ "$(cat /proc/sys/fs/mqueue/msg_max 2>/dev/
 fi
 
 # ---------------------------------------------------------------- test file
+OUT="${OUT:-./e2e_result_$(date +%Y%m%d_%H%M%S)}"
+mkdir -p "$OUT/received"
+OUT="$(abspath "$OUT")" || die "cannot use the result folder $OUT"
 if [[ -n "$FILE" ]]; then
     [[ -f "$FILE" ]] || die "no such file: $FILE"
     SRC="$(cd "$(dirname "$FILE")" && pwd)/$(basename "$FILE")"
@@ -145,7 +147,11 @@ rm -f "$EXE/cf/relay/$NAME" "$EXE/cf/relay/$NAME.part"
 CFS_PID=$!
 for _ in $(seq 1 100); do
     grep -q "entering OPERATIONAL state" "$OUT/cfs.log" 2>/dev/null && break
-    kill -0 "$CFS_PID" 2>/dev/null || { tail -20 "$OUT/cfs.log"; die "cFS exited during start-up"; }
+    if ! kill -0 "$CFS_PID" 2>/dev/null; then
+        tail -20 "$OUT/cfs.log"
+        grep -q "msg_max" "$OUT/cfs.log" && die "cFS could not create its queues: raise the limit, e.g. sudo sysctl fs.mqueue.msg_max=64"
+        die "cFS exited during start-up"
+    fi
     sleep 0.2
 done
 grep -q "entering OPERATIONAL state" "$OUT/cfs.log" || die "cFS did not reach OPERATIONAL (see $OUT/cfs.log)"
