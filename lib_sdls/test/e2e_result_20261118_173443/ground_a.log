@@ -1,0 +1,4 @@
+[A] OUTPUT_ENABLE: main TM output to 127.0.0.1:1235
+[A] relay START /cf/relay/e2e_relay.bin, 262144 bytes, crc32 0x32677e42, tag 2
+[A] relay uplink: 0 chunks not sent on purpose, 0 gap rounds, 7.9 s, status COMPLETE
+[A] RESULT: PASS (the satellite now sends it to tag 2)

@@ -1,0 +1,34 @@
+listening for TM frames on UDP 1245, segments 0x08c3 with DestTag 2, saving to /home/yujin/Documents/lab-2026-1/cFS-GroundSystem/lib_sdls/test/e2e_result_20261118_173443/received/
+sent ADD_DEST 127.0.0.1:1245 to 127.0.0.1
+[start] e2e_relay.bin: 0/262144 B (0.0%) RECEIVING, 1 missing range(s)
+  e2e_relay.bin: 1024/262144 B (0.4%) RECEIVING, 1 missing range(s)
+  e2e_relay.bin: 11264/262144 B (4.3%) RECEIVING, 1 missing range(s)
+  e2e_relay.bin: 21504/262144 B (8.2%) RECEIVING, 1 missing range(s)
+  e2e_relay.bin: 31744/262144 B (12.1%) RECEIVING, 1 missing range(s)
+  e2e_relay.bin: 41984/262144 B (16.0%) RECEIVING, 1 missing range(s)
+  e2e_relay.bin: 52224/262144 B (19.9%) RECEIVING, 1 missing range(s)
+  e2e_relay.bin: 62464/262144 B (23.8%) RECEIVING, 1 missing range(s)
+  e2e_relay.bin: 72704/262144 B (27.7%) RECEIVING, 1 missing range(s)
+  e2e_relay.bin: 82944/262144 B (31.6%) RECEIVING, 1 missing range(s)
+  e2e_relay.bin: 93184/262144 B (35.5%) RECEIVING, 1 missing range(s)
+  e2e_relay.bin: 103424/262144 B (39.5%) RECEIVING, 1 missing range(s)
+  e2e_relay.bin: 113664/262144 B (43.4%) RECEIVING, 1 missing range(s)
+  e2e_relay.bin: 123904/262144 B (47.3%) RECEIVING, 1 missing range(s)
+  e2e_relay.bin: 134144/262144 B (51.2%) RECEIVING, 1 missing range(s)
+  e2e_relay.bin: 144384/262144 B (55.1%) RECEIVING, 1 missing range(s)
+  e2e_relay.bin: 154624/262144 B (59.0%) RECEIVING, 1 missing range(s)
+  e2e_relay.bin: 164864/262144 B (62.9%) RECEIVING, 1 missing range(s)
+  e2e_relay.bin: 175104/262144 B (66.8%) RECEIVING, 1 missing range(s)
+  e2e_relay.bin: 185344/262144 B (70.7%) RECEIVING, 1 missing range(s)
+  e2e_relay.bin: 197632/262144 B (75.4%) RECEIVING, 1 missing range(s)
+  e2e_relay.bin: 207872/262144 B (79.3%) RECEIVING, 1 missing range(s)
+  e2e_relay.bin: 218112/262144 B (83.2%) RECEIVING, 1 missing range(s)
+  e2e_relay.bin: 228352/262144 B (87.1%) RECEIVING, 1 missing range(s)
+  e2e_relay.bin: 238592/262144 B (91.0%) RECEIVING, 1 missing range(s)
+  e2e_relay.bin: 248832/262144 B (94.9%) RECEIVING, 1 missing range(s)
+  e2e_relay.bin: 259072/262144 B (98.8%) RECEIVING, 1 missing range(s)
+[end] e2e_relay.bin: 262144/262144 B (100.0%) RECEIVING, END crc 32677e42
+[complete] e2e_relay.bin: 262144/262144 B (100.0%) COMPLETE, END crc 32677e42
+  file crc 32677e42, END crc 32677e42 -> /home/yujin/Documents/lab-2026-1/cFS-GroundSystem/lib_sdls/test/e2e_result_20261118_173443/received/e2e_relay.bin
+sent DONE crc 32677e42
+sent REMOVE_DEST 127.0.0.1:1245

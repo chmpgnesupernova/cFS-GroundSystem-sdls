@@ -1,0 +1,103 @@
+OS_Posix_GetSchedulerParams():189:Policy 1: available, min-max: 1-99
+OS_Posix_GetSchedulerParams():189:Policy 2: available, min-max: 1-99
+OS_Posix_TaskAPI_Impl_Init():375:Selected policy 2 for RT tasks, root task = 99
+OS_Posix_TaskAPI_Impl_Init():392:Could not setschedparam in main thread: Operation not permitted (1)
+CFE_PSP: EEPROM Range (2) created: Start Address = 7F91299D1000, Size = 00080000 Status = 0
+CFE_PSP: Normal exit from previous cFE instance
+CFE_PSP: Starting the cFE with a POWER ON reset.
+CFE_PSP: Clearing out CFE CDS Shared memory segment.
+CFE_PSP: Clearing out CFE Reset Shared memory segment.
+CFE_PSP: Clearing out CFE User Reserved Shared memory segment.
+1980-001-07:34:06.47233 CFE_ES_SetupResetVariables: POWER ON RESET due to Power Cycle (Power Cycle).
+1980-001-07:34:06.47236 CFE_ES_Main: CFE_ES_Main in EARLY_INIT state
+CFE_PSP: CFE_PSP_AttachExceptions Called
+1980-001-07:34:06.47286 CFE_ES_Main: CFE_ES_Main entering CORE_STARTUP state
+1980-001-07:34:06.47287 CFE_ES_CreateObjects: Starting Object Creation calls.
+1980-001-07:34:06.47287 CFE_ES_CreateObjects: Calling CFE_Config_Init
+1980-001-07:34:06.47290 CFE_ES_CreateObjects: Calling CFE_ES_CDSEarlyInit
+1980-001-07:34:06.47309 CFE_ES_CreateObjects: Calling CFE_EVS_EarlyInit
+1980-001-07:34:06.47311 CFE_EVS_EarlyInit: Event Log cleared following power-on reset
+1980-001-07:34:06.47311 CFE_ES_CreateObjects: Calling CFE_SB_EarlyInit
+1980-001-07:34:06.47359 CFE_ES_CreateObjects: Calling CFE_TIME_EarlyInit
+1980-012-14:03:20.00000 CFE_ES_CreateObjects: Calling CFE_TBL_EarlyInit
+1980-012-14:03:20.00048 CFE_ES_CreateObjects: Calling CFE_FS_EarlyInit
+EVS Port1 66/1/CFE_EVS 1: cFE EVS Initialized:  cFE DEVELOPMENT BUILD v7.0.0-rc4+dev39 (Codename: Draco), Last Official Release: cfe v6.7.0
+1980-012-14:03:20.15199 CFE_SB_AppInit: Registered 4 events for filtering
+EVS Port1 66/1/CFE_SB 1: cFE SB Initialized:  cFE DEVELOPMENT BUILD v7.0.0-rc4+dev39 (Codename: Draco), Last Official Release: cfe v6.7.0
+EVS Port1 66/1/CFE_SB 14: No subscribers for MsgId 0x808,sender CFE_SB
+EVS Port1 66/1/CFE_ES 1: cFE ES Initialized:  cFE DEVELOPMENT BUILD v7.0.0-rc4+dev39 (Codename: Draco), Last Official Release: cfe v6.7.0
+EVS Port1 66/1/CFE_SB 14: No subscribers for MsgId 0x808,sender CFE_ES
+EVS Port1 66/1/CFE_ES 2: cFS Versions: cfe v7.0.0-rc4+dev39, osal v6.0.0-rc4+dev15, psp v1.6.0-rc1+dev4. cFE chksm 58839
+EVS Port1 66/1/CFE_SB 14: No subscribers for MsgId 0x808,sender CFE_ES
+EVS Port1 66/1/CFE_ES 91: Version Info: Mission SampleMission, version git:caelum-rc4-62-g34140e3-dirty
+EVS Port1 66/1/CFE_SB 14: No subscribers for MsgId 0x808,sender CFE_ES
+EVS Port1 66/1/CFE_ES 91: Version Info: Module CORE_API, version git:v7.0.0-rc4-38-gc161cf04
+EVS Port1 66/1/CFE_ES 91: Version Info: Module ES, version git:v7.0.0-rc4-38-gc161cf04
+EVS Port1 66/1/CFE_ES 91: Version Info: Module EVS, version git:v7.0.0-rc4-38-gc161cf04
+EVS Port1 66/1/CFE_ES 91: Version Info: Module FS, version git:v7.0.0-rc4-38-gc161cf04
+EVS Port1 66/1/CFE_ES 91: Version Info: Module SB, version git:v7.0.0-rc4-38-gc161cf04
+EVS Port1 66/1/CFE_ES 91: Version Info: Module TBL, version git:v7.0.0-rc4-38-gc161cf04
+EVS Port1 66/1/CFE_ES 91: Version Info: Module TIME, version git:v7.0.0-rc4-38-gc161cf04
+EVS Port1 66/1/CFE_ES 91: Version Info: Module OSAL, version git:v6.0.0-rc4-15-g762f144
+EVS Port1 66/1/CFE_ES 91: Version Info: Module PSP, version git:v1.6.0-rc3-7-g4b3ce8d
+EVS Port1 66/1/CFE_ES 91: Version Info: Module MSG, version git:v7.0.0-rc4-38-gc161cf04
+EVS Port1 66/1/CFE_ES 91: Version Info: Module SBR, version git:v7.0.0-rc4-38-gc161cf04
+EVS Port1 66/1/CFE_ES 91: Version Info: Module RESOURCEID, version git:v7.0.0-rc4-38-gc161cf04
+EVS Port1 66/1/CFE_ES 91: Version Info: Module CONFIG, version git:v7.0.0-rc4-38-gc161cf04
+EVS Port1 66/1/CFE_ES 92: Build 202611181605 by yujin@debian, config bbb
+EVS Port1 66/1/CFE_TIME 1: cFE TIME Initialized:  cFE DEVELOPMENT BUILD v7.0.0-rc4+dev39 (Codename: Draco), Last Official Release: cfe v6.7.0
+EVS Port1 66/1/CFE_TBL 1: cFE TBL Initialized:  cFE DEVELOPMENT BUILD v7.0.0-rc4+dev39 (Codename: Draco), Last Official Release: cfe v6.7.0
+1980-012-14:03:20.50511 CFE_ES_CreateObjects: Finished ES CreateObject table entries.
+1980-012-14:03:20.50514 CFE_ES_Main: CFE_ES_Main entering CORE_READY state
+1980-012-14:03:20.50520 CFE_ES_StartApplications: Opened ES App Startup file: /cf/cfe_es_startup.scr
+1980-012-14:03:20.50555 CFE_ES_ParseFileEntry: Loading shared library: /cf/sample_lib.so
+SAMPLE Lib Initialized. Sample Lib DEVELOPMENT BUILD v1.3.0-rc4+dev3, Last Official Release: v1.1.0
+1980-012-14:03:20.50617 CFE_ES_ParseFileEntry: Loading file: /cf/sample_app.so, APP: SAMPLE_APP
+1980-012-14:03:20.50674 CFE_ES_ParseFileEntry: Loading file: /cf/ci_lab.so, APP: CI_LAB_APP
+1980-012-14:03:20.50711 CFE_ES_ParseFileEntry: Loading file: /cf/to_lab.so, APP: TO_LAB_APP
+1980-012-14:03:20.50745 CFE_ES_ParseFileEntry: Loading file: /cf/sch_lab.so, APP: SCH_LAB_APP
+1980-012-14:03:20.50778 CFE_ES_ParseFileEntry: Loading file: /cf/blinky.so, APP: BLINKY_APP
+1980-012-14:03:20.50811 CFE_ES_ParseFileEntry: Loading file: /cf/file_dl.so, APP: FILE_DL
+1980-012-14:03:20.50847 CFE_ES_ParseFileEntry: Loading file: /cf/msn_app.so, APP: MSN_APP
+1980-012-14:03:20.55713 CFE_EVS_Register: Filter limit truncated to 8
+EVS Port1 66/1/SAMPLE_APP 1: SAMPLE App Initialized. Sample App DEVELOPMENT BUILD v1.3.0-rc4+dev4, Last Official Release: v1.1.0
+1980-012-14:03:20.55734 CI_LAB listening on UDP port: 1234
+EVS Port1 66/1/CI_LAB_APP 3: CI Lab Initialized. CI Lab App DEVELOPMENT BUILD v2.5.0-rc4+dev4, Last Official Release: v2.3.0
+1980-012-14:03:20.55744 CFE_EVS_Register: Filter limit truncated to 8
+EVS Port1 66/1/TO_LAB_APP 1: TO Lab Initialized. TO Lab DEVELOPMENT BUILD v2.5.0-rc4+dev4, Last Official Release: v2.3.0, Awaiting enable command.
+SCH Lab Initialized. SCH Lab DEVELOPMENT BUILD v2.5.0-rc4+dev6, Last Official Release: v2.3.0
+1980-012-14:03:20.55814 CFE_EVS_Register: Filter limit truncated to 8
+EVS Port1 66/1/BLINKY_APP 1: BLINKY App Initialized. Ping DEVELOPMENT BUILD v1.0.0-rc1+dev4, Last Official Release: v1.0.0
+EVS Port1 66/1/FILE_DL 1: FILE_DL Initialized
+EVS Port1 66/1/MSN_APP 1: MSN App Initialized. MSN App v1.1.0 Temp limits 60 / -20 C, period 1
+1980-012-14:03:20.60888 CFE_ES_Main: CFE_ES_Main entering APPS_INIT state
+1980-012-14:03:20.60891 CFE_ES_Main: CFE_ES_Main entering OPERATIONAL state
+EVS Port1 66/1/TO_LAB_APP 22: TO: TM also goes to 127.0.0.1:1245
+EVS Port1 66/1/CFE_TIME 21: Stop FLYWHEEL
+EVS Port1 66/1/TO_LAB_APP 3: TO telemetry output enabled for IP 127.0.0.1
+EVS Port1 66/1/FILE_DL 9: FILE_RELAY: receiving /cf/relay/e2e_relay.bin, 262144 bytes, tag 2
+EVS Port1 66/1/FILE_DL 12: FILE_RELAY: /cf/relay/e2e_relay.bin received and verified, crc32 0x32677e42
+EVS Port1 66/1/FILE_DL 3: FILE_DL: sending /cf/relay/e2e_relay.bin, 262144 bytes
+EVS Port1 66/1/FILE_DL 14: FILE_RELAY: sending /cf/relay/e2e_relay.bin to tag 2
+EVS Port1 66/1/FILE_DL 5: FILE_DL: /cf/relay/e2e_relay.bin sent, crc32 0x32677e42
+EVS Port1 66/1/FILE_DL 7: FILE_DL: /cf/relay/e2e_relay.bin confirmed by ground, crc32 0x32677e42
+EVS Port1 66/1/TO_LAB_APP 22: TO: TM no longer goes to 127.0.0.1:1245
+1980-012-14:03:57.13208 CFE_ES_RunExceptionScan: ExceptionID 0x1110000 in TaskID 0: Caught SIGINT
+1980-012-14:03:57.13210 CFE_ES_RunExceptionScan: Processor Reset count not reached (0/2)
+CFE_PSP: Exiting cFE with PROCESSOR Reset status.
+
+CFE_PSP: Shutdown initiated - Exiting cFE
+CI delete callback -- Closing CI Network socket.
+TO delete callback -- Closing TO Network socket.
+OS_BSP_Initialize():Maximum user msg queue depth = 10
+CFE_PSP: Reset Type: PO
+CFE_PSP: Default Reset SubType = 1
+CFE_PSP: Default CPU ID = 1
+CFE_PSP: Default Spacecraft ID = 66
+CFE_PSP: Default CPU Name: cpu1
+CFE_PSP: Instantiated software timebase 'cFS-Master' running at 10000 usec
+CFE_PSP: Using POSIX monotonic clock as CFE timebase
+CFE_PSP: Using MMAP simulated EEPROM implementation
+CFE_PSP: Physical RAM access not implemented
+CFE_PSP: I/O Port access not implemented
+Calling rtems_gpio_initialize
