@@ -111,6 +111,38 @@ def parse_segment(packet):
                    data=bytes(data[:data_length]))
 
 
+FILE_UL_STATUS_TLM_MID = 0x08C1
+FILE_RELAY_STATUS_TLM_MID = 0x08C2
+STATUS_MIDS = (FILE_UL_STATUS_TLM_MID, FILE_RELAY_STATUS_TLM_MID)
+UL_STATES = ("IDLE", "RECEIVING", "VERIFYING", "COMPLETE", "FAILED")
+STATUS_MAX_GAPS = 32
+
+
+def parse_status(packet):
+    """Upload / relay status packet (0x08C1 / 0x08C2, README 3.2) -> dict, or None.
+
+    state, relay, dest_tag, size, received, expected_crc, file_crc, total_gaps, name,
+    gaps [(offset, length)] (at most 32: the first missing ranges)."""
+    if packet_mid(packet) not in STATUS_MIDS or len(packet) < TLM_HDR_LENGTH + 88:
+        return None
+    p = packet[TLM_HDR_LENGTH:]
+    u32 = lambda i: int.from_bytes(p[i : i + 4], "big")  # noqa: E731
+    gap_count = min(p[3], STATUS_MAX_GAPS, max(0, (len(p) - 88) // 8))
+    return {
+        "mid": packet_mid(packet),
+        "state": UL_STATES[p[0]] if p[0] < len(UL_STATES) else f"state {p[0]}",
+        "relay": p[1],
+        "dest_tag": p[2],
+        "size": u32(4),
+        "received": u32(8),
+        "expected_crc": u32(12),
+        "file_crc": u32(16),
+        "total_gaps": u32(20),
+        "name": p[24:88].split(b"\0", 1)[0].decode("utf-8", "replace"),
+        "gaps": [(u32(88 + 8 * k), u32(92 + 8 * k)) for k in range(gap_count)],
+    }
+
+
 def command(mid, cc, payload=b"", seq=0):
     """cFS command Space Packet: 8 byte header (checksum: XOR of all bytes is 0xFF)."""
     packet = bytearray(mid.to_bytes(2, "big") + (0xC000 | (seq & 0x3FFF)).to_bytes(2, "big")

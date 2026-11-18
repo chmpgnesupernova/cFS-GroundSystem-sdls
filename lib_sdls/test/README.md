@@ -21,6 +21,7 @@ Python ground system이 ctypes로 `libsdls.so`를 불러 쓰는 방식 그대로
 | `test_tm_sdlp.py` | `TM_SDLP_myExtractPacket` 테스트 |
 | `test_tm_stream.py` | TM 수신 스트림(`TM_SDLP_myRx*`, `sdlp_link.decapsulate_tm`): 프레임 경계를 넘는 패킷 재조립(FHP), 프레임보다 긴 패킷(FHP 0x7FF), 프레임 경계에 걸린 헤더, 다음 프레임으로 넘어간 짧은 idle, 프레임 손실(MC Frame Count) 시 끊긴 패킷만 버림, 송신자별 스트림, 잘못된 FHP 거절, 깨진 헤더 후 재동기 |
 | `test_file_rx.py` | `file_rx.py`: FILE_DL 세그먼트를 프레임 재조립으로 받아 파일로 저장, 손실 후 재전송분으로 완성, DestTag·MID 필터, CRC 불일치, END 손실, 경로 조작 방지, 명령(ADD_DEST·RESEND·DONE·REMOVE_DEST) 바이트, UDP로 돌린 독립 수신국(main) |
+| `test_file_relay.py` | File Relay 창: 명령 창(위 업링크 OUTPUT_ENABLE·START·DATA·END·STATUS·CANCEL, 아래 다운링크 ADD_DEST·DONE·REMOVE_DEST·RESEND)의 버튼이 UDP로 내보내는 TC, 상태의 빠진 구간만 DATA로 재전송, 받은 파일의 CRC로 DONE, 텔레메트리 창(위 Transmit 0x08C2, 아래 Receive 0x08C3)의 표시·파일 저장·상태 파일. PyQt5·zmq는 가짜로 대체 |
 | `e2e_relay.sh` | 실제 cFS를 띄운 릴레이 종단 시험 (unittest가 아님, 직접 실행). 지상국 A = 위성 저장소의 `file_dl_test/relay_ground_a.py`, 지상국 B = `file_rx.py`. A 업링크 → 위성 저장·CRC 검증 → B로 분할 프레임 다운링크 → B 저장·RESEND·DONE → 원본 비교, 위성 이벤트 확인. `--ul-loss`, `--dl-loss`로 손실 시험 |
 | `frame_view.py` | 완성된 TC/TM 프레임(Primary + Security Header + Data + Trailer)을 필드별로 출력. `python3 test/frame_view.py [--hex]` |
 | `test_frame_view.py` | `frame_view.py` 디코더 검증 + 실행 확인 |

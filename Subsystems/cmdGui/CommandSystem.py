@@ -76,9 +76,14 @@ class CommandSystem(QDialog, UiCommandsystemdialog):
             "Type every SPP field in hex and send it to the TC target IP")
         self.btn_handcraft.setAutoDefault(False)
         self.btn_handcraft.clicked.connect(self.open_handcraft)
+        self.btn_file_relay = QPushButton("File Relay", self.layout_widget_3)
+        self.btn_file_relay.setToolTip(
+            "Send a file to relay, and get a relayed file (TC target IP)")
+        self.btn_file_relay.setAutoDefault(False)
+        self.btn_file_relay.clicked.connect(self.open_file_relay)
         for pos, widget in enumerate(
                 (self.lbl_target_ip, self.edit_target_ip, self.btn_target_ip,
-                 self.btn_handcraft)):
+                 self.btn_handcraft, self.btn_file_relay)):
             layout.insertWidget(pos, widget)
 
         # Enter in the IP field applies it (and must not hit Close).
@@ -91,13 +96,22 @@ class CommandSystem(QDialog, UiCommandsystemdialog):
     # 'Handcraft TC' button: a page where every SPP field is typed in hex
     #
     def open_handcraft(self):
+        return self._open_tool("HandcraftCommand.py", "Handcraft TC")
+
+    #
+    # 'File Relay' button: uplink and downlink commands of the file relay
+    #
+    def open_file_relay(self):
+        return self._open_tool("FileRelayCommand.py", "File Relay")
+
+    def _open_tool(self, script_name, title):
         host = self.target_ip or "127.0.0.1"
         ports = globals().get("cmdPagePort") or []
         port = ports[0] if ports else HANDCRAFT_DEFAULT_PORT
-        script = Path(__file__).resolve().parent / "HandcraftCommand.py"
+        script = Path(__file__).resolve().parent / script_name
         cmd_args = [sys.executable or "python3", str(script),
                     f"--host={host}", f"--port={port}"]
-        print(f"Handcraft TC -> {host}:{port}")
+        print(f"{title} -> {host}:{port}")
         return subprocess.Popen(cmd_args)
 
     def set_target_ip(self, ip):

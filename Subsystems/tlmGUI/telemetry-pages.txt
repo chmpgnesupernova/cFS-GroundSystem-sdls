@@ -11,6 +11,7 @@
 #  Note(2): Remove any blank lines from the end of the file
 #
 Event Messages,            EventMessage.py,         0x808,   null
+File Relay,                FileRelayTelemetry.py,   0x8C2,   null
 ES HK Tlm,                 GenericTelemetry.py,     0x800,   cfe-es-hk-tlm.txt
 EVS HK Tlm,                GenericTelemetry.py,     0x801,   cfe-evs-hk-tlm.txt
 SB HK Tlm,                 GenericTelemetry.py,     0x803,   cfe-sb-hk-tlm.txt
