@@ -10,7 +10,7 @@ Python ground system이 ctypes로 `libsdls.so`를 불러 쓰는 방식 그대로
 | 파일 | 내용 |
 |---|---|
 | `sdls_binding.py` | ctypes 바인딩 (함수 시그니처, C 헤더 상수 사본, 예외 래퍼). ground system에서 그대로 가져다 써도 됨 |
-| `sat_reference.py` | 위성 쪽 `TC_SDLP_myExtractPacket`, `TM_SDLP_myForwardPacket` 등의 Python 포팅. SA01/SA11 암호화 포함 (`SatCrypto`로 satsim 호출) |
+| `sat_reference.py` | 위성 쪽 `TC_SDLP_myExtractPacket`, `TM_SDLP_myForwardPacket` 등의 Python 포팅. SA01/SA11 암호화 포함 (`SatCrypto`로 satsim 호출). `SatTmSegmentingFramer`는 현재 to_lab(476f4dc)의 패킷 분할 프레이밍과 바이트 단위로 같음 |
 | `satsim/satsim.c` | 테스트 전용 위성 암호 라이브러리 `libsdls_satsim.so` 소스 |
 | `test_sdls.py` | SDLS 프레임 보호: TC 암호화를 위성이 복호화, 바이트 변조 거절, MC Frame Count 비인증, 위조 프레임이 ARSN을 못 미는지, 실패 시 데이터 소거. `cryptography`가 있으면 독립 구현으로 교차 검증 |
 | `test_sdlp_only.py` | SDLP-only 빌드: TC는 Primary Header + SPP만(Security Header·MAC 없음), TM도 Primary Header + 패킷만(Security Header·MAC 없음), SPI 무시, SA DB 없이 동작, 프레임 검사 유지 (SDLS 빌드에서는 건너뜀) |
@@ -19,6 +19,8 @@ Python ground system이 ctypes로 `libsdls.so`를 불러 쓰는 방식 그대로
 | `test_ep.py` | 키 교환: 위성 ek → 지상 캡슐화 → 위성 역캡슐화 → 양방향 보호 통신, 키 재교환, 변조된 ct, 잘못된 ek, ML-DSA 서명 검증, 프로세스 간 ct·서명키 공유 |
 | `test_tc_sdlp.py` | `TC_SDLP_myInit`, `TC_SDLP_myBuildFrame` 테스트 |
 | `test_tm_sdlp.py` | `TM_SDLP_myExtractPacket` 테스트 |
+| `test_tm_stream.py` | TM 수신 스트림(`TM_SDLP_myRx*`, `sdlp_link.decapsulate_tm`): 프레임 경계를 넘는 패킷 재조립(FHP), 프레임보다 긴 패킷(FHP 0x7FF), 프레임 경계에 걸린 헤더, 다음 프레임으로 넘어간 짧은 idle, 프레임 손실(MC Frame Count) 시 끊긴 패킷만 버림, 송신자별 스트림, 잘못된 FHP 거절, 깨진 헤더 후 재동기 |
+| `test_file_rx.py` | `file_rx.py`: FILE_DL 세그먼트를 프레임 재조립으로 받아 파일로 저장, 손실 후 재전송분으로 완성, DestTag·MID 필터, CRC 불일치, END 손실, 경로 조작 방지, 명령(ADD_DEST·RESEND·DONE·REMOVE_DEST) 바이트, UDP로 돌린 독립 수신국(main) |
 | `frame_view.py` | 완성된 TC/TM 프레임(Primary + Security Header + Data + Trailer)을 필드별로 출력. `python3 test/frame_view.py [--hex]` |
 | `test_frame_view.py` | `frame_view.py` 디코더 검증 + 실행 확인 |
 | `test_sechdr.py` | SDLS Security Header (`SECHDR_my*`) 테스트. TC 헤더 바이트(SPI BE + IV), TM 헤더 SPI/SA/ARSN 검사 |
