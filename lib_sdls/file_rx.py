@@ -37,10 +37,12 @@ Command line, a stand-alone receiving station (ground station B of the relay dem
                 seconds) and DONE when complete
     --register  with --sat: ADD_DEST (my-ip, port) at start, REMOVE_DEST at the end
     --once      stop after the first complete file
+    --dl-loss   test only: drop this fraction of received frames (exercises RESEND)
 """
 
 import argparse
 import os
+import random
 import socket
 import sys
 import time
@@ -368,7 +370,12 @@ def main(argv=None):
     parser.add_argument("--resend-after", type=float, default=3.0,
                         help="seconds without segments after END before asking for missing ranges")
     parser.add_argument("--once", action="store_true", help="stop after the first complete file")
+    parser.add_argument("--dl-loss", type=float, default=0.0,
+                        help="test only: fraction of received TM frames to drop on purpose")
+    parser.add_argument("--seed", type=int, default=1, help="random seed for --dl-loss")
     args = parser.parse_args(argv)
+    loss_rng = random.Random(args.seed)
+    frames_dropped = 0
 
     def report(event, rx):
         print(f"[{event}] {rx.status_line()}")
@@ -395,6 +402,9 @@ def main(argv=None):
             try:
                 frame, (host, _) = tm.recvfrom(4096)
             except socket.timeout:
+                frame = None
+            if frame is not None and args.dl_loss and loss_rng.random() < args.dl_loss:
+                frames_dropped += 1  # as if lost on the way down
                 frame = None
             if frame is not None:
                 try:
@@ -434,6 +444,8 @@ def main(argv=None):
         pass
     finally:
         rx.close()
+        if args.dl_loss:
+            print(f"dropped {frames_dropped} TM frame(s) on purpose (--dl-loss {args.dl_loss})")
         if args.sat and args.register:
             _send_tc(tc, args.sat, remove_dest_command(args.my_ip, args.port), "REMOVE_DEST")
             print(f"sent REMOVE_DEST {args.my_ip}:{args.port}")
