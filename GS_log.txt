@@ -1,0 +1,3 @@
+Generic Telemetry Page started. Subscribed to GroundSystem.0x806
+Generic Telemetry Page started. Subscribed to GroundSystem.0x803
+Telemetry System started. Subscribed to GroundSystem
