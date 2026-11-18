@@ -32,6 +32,8 @@ from PyQt5.QtWidgets import (QApplication, QDialog, QHeaderView,
                              QTableWidgetItem)
 
 from UiGenerictelemetrydialog import UiGenerictelemetrydialog
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib_sdls"))
+import gs_instance  # noqa: E402
 
 # ../cFS/tools/cFS-GroundSystem/Subsystems/tlmGUI
 ROOTDIR = Path(sys.argv[0]).resolve().parent
@@ -44,7 +46,7 @@ class SubsystemTelemetry(QDialog, UiGenerictelemetrydialog):
     def __init__(self):
         super().__init__()
         self.setupUi(self)
-        with open("/tmp/OffsetData", "r+b") as f:
+        with open(gs_instance.offset_file(), "r+b") as f:
             self.mm = mmap.mmap(f.fileno(), 0, prot=mmap.PROT_READ)
 
     #
@@ -85,7 +87,7 @@ class SubsystemTelemetry(QDialog, UiGenerictelemetrydialog):
 
     # Start the telemetry receiver (see GTTlmReceiver class)
     def init_gt_tlm_receiver(self, subscr):
-        self.setWindowTitle(f"{page_title} for: {subscr}")
+        self.setWindowTitle(gs_instance.title(f"{page_title} for: {subscr}"))
         self.thread = GTTlmReceiver(subscr)
         self.thread.gt_signal_tlm_datagram.connect(self.process_pending_datagrams)
         self.thread.finished.connect(self.thread.deleteLater)
@@ -133,7 +135,7 @@ class GTTlmReceiver(QThread):
         # Init zeroMQ
         context = zmq.Context()
         self.subscriber = context.socket(zmq.SUB)
-        self.subscriber.connect("ipc:///tmp/GroundSystem")
+        self.subscriber.connect(gs_instance.ipc_address())
         my_tlm_pg_apid = subscr.split(".", 1)
         my_subscription = f"GroundSystem.Spacecraft1.TelemetryPackets.{my_tlm_pg_apid[1]}"
         self.subscriber.setsockopt_string(zmq.SUBSCRIBE, my_subscription)

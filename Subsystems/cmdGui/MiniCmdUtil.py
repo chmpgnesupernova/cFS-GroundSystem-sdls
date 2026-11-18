@@ -29,6 +29,7 @@ from pathlib import Path
 
 # lib_sdls (repository top level): every command goes out as a TC frame.
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib_sdls"))
+import gs_instance  # noqa: E402
 import sdlp_link  # noqa: E402
 
 
@@ -69,7 +70,7 @@ class MiniCmdUtil:
         self.parameters = parameters
         self.payload = bytearray()
         self.packet = bytearray()
-        with open("/tmp/OffsetData", "r+b") as f:
+        with open(gs_instance.offset_file(), "r+b") as f:
             self.mm = mmap.mmap(f.fileno(), 0, prot=mmap.PROT_READ)
 
         self.cmd_offset_pri = 0

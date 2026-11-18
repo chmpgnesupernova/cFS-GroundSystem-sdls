@@ -60,6 +60,8 @@ from PyQt5.QtCore import QThread, pyqtSignal
 from PyQt5.QtWidgets import QApplication, QDialog
 
 from UiEventmessagedialog import UiEventmessagedialog
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib_sdls"))
+import gs_instance  # noqa: E402
 
 ROOTDIR = Path(sys.argv[0]).resolve().parent
 
@@ -77,11 +79,11 @@ class EventMessageTelemetry(QDialog, UiEventmessagedialog):
             4: "CRITICAL"
         }
 
-        with open("/tmp/OffsetData", "r+b") as f:
+        with open(gs_instance.offset_file(), "r+b") as f:
             self.mm = mmap.mmap(f.fileno(), 0, prot=mmap.PROT_READ)
 
     def init_em_tlm_receiver(self, subscr):
-        self.setWindowTitle(f'{page_title} for: {subscr}')
+        self.setWindowTitle(gs_instance.title(f'{page_title} for: {subscr}'))
         self.thread = EMTlmReceiver(subscr, self.appId)
         self.thread.em_signal_tlm_datagram.connect(self.process_pending_datagrams)
         self.thread.finished.connect(self.thread.deleteLater)
@@ -141,7 +143,7 @@ class EMTlmReceiver(QThread):
         # Init zeroMQ
         self.context = zmq.Context()
         self.subscriber = self.context.socket(zmq.SUB)
-        self.subscriber.connect("ipc:///tmp/GroundSystem")
+        self.subscriber.connect(gs_instance.ipc_address())
         subscription_string = f"{subscr}.Spacecraft1.TelemetryPackets.{app_id}"
         self.subscriber.setsockopt_string(zmq.SUBSCRIBE, subscription_string)
 
