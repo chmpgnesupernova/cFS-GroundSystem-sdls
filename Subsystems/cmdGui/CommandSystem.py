@@ -31,7 +31,7 @@ from PyQt5.QtWidgets import (QApplication, QDialog, QHeaderView, QLabel,
                              QTableWidgetItem)
 
 import network_config
-from MiniCmdUtil import MiniCmdUtil
+from MiniCmdUtil import MiniCmdUtil, gs_instance
 from UiCommandsystemdialog import UiCommandsystemdialog
 
 # ../cFS/tools/cFS-GroundSystem/Subsystems/cmdGui/
@@ -47,6 +47,7 @@ class CommandSystem(QDialog, UiCommandsystemdialog):
     def __init__(self):
         super().__init__()
         self.setupUi(self)
+        self.setWindowTitle(gs_instance.title(self.windowTitle()))
         self.move(800, 100)
         self.mcu = None
         self.target_ip = None

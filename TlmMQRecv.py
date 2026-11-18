@@ -20,7 +20,13 @@
 #!/usr/bin/env python3
 #
 
+import sys
+from pathlib import Path
+
 import zmq
+
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib_sdls"))
+import gs_instance  # noqa: E402
 
 
 #
@@ -32,7 +38,7 @@ def main():
     # Prepare our context and publisher
     context = zmq.Context()
     subscriber = context.socket(zmq.SUB)
-    subscriber.connect("ipc:///tmp/GroundSystem")
+    subscriber.connect(gs_instance.ipc_address())
     subscriber.setsockopt(zmq.SUBSCRIBE, b"GroundSystem")
 
     while True:

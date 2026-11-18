@@ -28,9 +28,11 @@ import os
 import signal
 import pathlib
 
+import argparse
+
 from PyQt5.QtWidgets import QApplication, QMainWindow, QMessageBox
 
-from RoutingService import RoutingService
+from RoutingService import RoutingService, gs_instance
 from UiMainWindow import UiMainWindow
 
 from _version import __version__ as _version
@@ -59,6 +61,7 @@ class GroundSystem(QMainWindow, UiMainWindow):
     def __init__(self):
         super().__init__()
         self.setupUi(self)
+        self.setWindowTitle(gs_instance.title(self.windowTitle()))
 
         self.routing_service = None
         self.alert = QMessageBox()
@@ -166,7 +169,7 @@ class GroundSystem(QMainWindow, UiMainWindow):
     def save_offsets(self):
         offsets = bytes((self.sb_tlm_offset.value(), self.sb_cmd_offset_pri.value(),
                          self.sb_cmd_offset_sec.value()))
-        with open("/tmp/OffsetData", "wb") as f:
+        with open(gs_instance.offset_file(), "wb") as f:
             f.write(offsets)
 
     # Update the combo box list in gui
@@ -186,12 +189,31 @@ class GroundSystem(QMainWindow, UiMainWindow):
 # Main
 
 #
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(description="cFS Ground System")
+    parser.add_argument("--instance", default=gs_instance.DEFAULT_PORT, metavar="PORT",
+                        help="run as the instance named by its TM port: receive TM frames on this UDP port, "
+                             f"with its own zmq address, offsets and logs (default {gs_instance.DEFAULT_PORT})")
+    args, rest = parser.parse_known_args(argv)  # the rest goes to Qt
+    try:
+        args.instance = gs_instance.check_port(args.instance)
+    except ValueError as exc:
+        parser.error(str(exc))
+    return args, rest
+
+
 def main():
     # Report Version Number upon startup
     print(_version_string)
 
+    # Instance first: every window opened from here inherits it.
+    args, qt_args = parse_args(sys.argv[1:])
+    port = gs_instance.apply(args.instance)
+    print(f"Ground System instance {port}: TM on UDP {port}, {gs_instance.ipc_address()}, "
+          f"{gs_instance.offset_file()}")
+
     # Init app
-    app = QApplication(sys.argv)
+    app = QApplication(sys.argv[:1] + qt_args)
 
     # Init main window
     main_window = GroundSystem()

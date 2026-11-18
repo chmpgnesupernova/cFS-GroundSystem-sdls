@@ -18,6 +18,7 @@ from PyQt5.QtWidgets import (QApplication, QDialog, QGridLayout, QHBoxLayout,
                              QLabel, QLineEdit, QPushButton, QVBoxLayout)
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib_sdls"))
+import gs_instance  # noqa: E402
 import sdlp_link  # noqa: E402
 
 import spp_craft  # noqa: E402
@@ -52,7 +53,7 @@ class HandcraftCommand(QDialog):
         self.host = host
         self.port = port
         self.packet = None
-        self.setWindowTitle("Handcraft TC")
+        self.setWindowTitle(gs_instance.title("Handcraft TC"))
         self.resize(760, 360)
         mono = QFont("Monospace")
         mono.setStyleHint(QFont.TypeWriter)

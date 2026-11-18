@@ -43,7 +43,7 @@ from PyQt5.QtWidgets import (QApplication, QDialog, QHeaderView, QPushButton,
                              QTableWidgetItem)
 
 import network_config
-from MiniCmdUtil import MiniCmdUtil
+from MiniCmdUtil import MiniCmdUtil, gs_instance
 from UiGenericcommanddialog import UiGenericcommanddialog
 
 # ../cFS/tools/cFS-GroundSystem/Subsystems/cmdGui/
@@ -57,7 +57,7 @@ class SubsystemCommands(QDialog, UiGenericcommanddialog):
     def __init__(self):
         super().__init__()
         self.setupUi(self)
-        self.setWindowTitle(page_title)
+        self.setWindowTitle(gs_instance.title(page_title))
         self.mcu = None
 
     #

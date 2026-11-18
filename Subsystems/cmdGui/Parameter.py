@@ -28,7 +28,7 @@ from PyQt5.QtWidgets import (QApplication, QDialog, QHeaderView,
                              QTableWidgetItem)
 
 from HTMLDocsParser import HTMLDocsParser
-from MiniCmdUtil import MiniCmdUtil
+from MiniCmdUtil import MiniCmdUtil, gs_instance
 from UiParameterDialog import UiDialog
 
 ROOTDIR = Path(sys.argv[0]).resolve().parent
@@ -42,7 +42,7 @@ class Parameter(QDialog, UiDialog):
         super().__init__()
         self.setupUi(self)
         self.parser = HTMLDocsParser()
-        self.setWindowTitle("Parameter Dialog")
+        self.setWindowTitle(gs_instance.title("Parameter Dialog"))
         self.send_button_1.clicked.connect(self.ProcessSendButton)
         self.mcu = None
 

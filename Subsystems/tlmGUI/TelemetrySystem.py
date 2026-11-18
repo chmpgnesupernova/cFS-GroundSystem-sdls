@@ -33,6 +33,8 @@ from PyQt5.QtWidgets import (QApplication, QDialog, QHeaderView, QPushButton,
                              QTableWidgetItem)
 
 from UiTelemetrysystemdialog import UiTelemetrysystemdialog
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib_sdls"))
+import gs_instance  # noqa: E402
 
 ROOTDIR = Path(sys.argv[0]).resolve().parent
 
@@ -44,7 +46,7 @@ class TelemetrySystem(QDialog, UiTelemetrysystemdialog):
     def __init__(self):
         super().__init__()
         self.setupUi(self)
-        self.setWindowTitle('Telemetry System Main Page')
+        self.setWindowTitle(gs_instance.title('Telemetry System Main Page'))
         self.move(0, 100)
 
         self.pkt_count = 0
@@ -85,7 +87,7 @@ class TelemetrySystem(QDialog, UiTelemetrysystemdialog):
 
     # Start the telemetry receiver (see TSTlmReceiver class)
     def init_ts_tlm_receiver(self, subscr):
-        self.setWindowTitle(f'Telemetry System page for: {subscr}')
+        self.setWindowTitle(gs_instance.title(f'Telemetry System page for: {subscr}'))
         self.subscription = subscr
         self.thread = TSTlmReceiver(subscr)
         self.thread.ts_signal_tlm_datagram.connect(self.process_pending_datagrams)
@@ -152,7 +154,7 @@ class TSTlmReceiver(QThread):
         # Init zeroMQ
         context = zmq.Context()
         self.subscriber = context.socket(zmq.SUB)
-        self.subscriber.connect("ipc:///tmp/GroundSystem")
+        self.subscriber.connect(gs_instance.ipc_address())
         self.subscriber.setsockopt_string(zmq.SUBSCRIBE, subscr)
 
     def run(self):

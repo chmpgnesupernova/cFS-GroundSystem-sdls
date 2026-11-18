@@ -31,10 +31,12 @@ from PyQt5.QtCore import QThread, pyqtSignal
 
 # lib_sdls (repository top level): telemetry arrives as TM frames.
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib_sdls"))
+import gs_instance  # noqa: E402
 import sdlp_link  # noqa: E402
 
-# Receive port where the CFS TO_Lab app sends the telemetry packets
-udp_recv_port = 1235
+# Receive port where the CFS TO_Lab app sends the telemetry packets. None: the instance's
+# port (gs_instance.tm_port(), 1235 unless GroundSystem.py --instance <port>).
+udp_recv_port = None
 
 
 #
@@ -60,12 +62,19 @@ class RoutingService(QThread):
         # Init zeroMQ
         self.context = zmq.Context()
         self.publisher = self.context.socket(zmq.PUB)
-        self.publisher.bind("ipc:///tmp/GroundSystem")
+        self.publisher.bind(gs_instance.ipc_address())
 
     # Run thread
     def run(self):
         # Init udp socket
-        self.sock.bind(('', udp_recv_port))
+        port = gs_instance.tm_port() if udp_recv_port is None else udp_recv_port
+        try:
+            self.sock.bind(('', port))
+        except OSError as exc:
+            print(f"RoutingService: cannot receive TM on UDP {port}: {exc}\n"
+                  f"  Another program uses this port (another Ground System on it?). Stop it, or start\n"
+                  f"  this Ground System on another port: python3 GroundSystem.py --instance <port>")
+            return
 
         print('Attempting to wait for UDP messages')
 

@@ -24,9 +24,10 @@ from PyQt5.QtWidgets import (QApplication, QDialog, QFileDialog, QGridLayout, QG
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib_sdls"))
 import file_relay  # noqa: E402
+import gs_instance  # noqa: E402
 import file_rx  # noqa: E402
 
-DEFAULT_TM_PORT = 1235  # RoutingService listens here
+DEFAULT_TM_PORT = gs_instance.tm_port()  # this instance's RoutingService listens here
 MAX_RESENDS = file_rx.FILE_DL_MAX_RESENDS
 
 
@@ -55,7 +56,7 @@ class FileRelayCommand(QDialog):
         self.sender = sender or file_relay.TcSender(host, port)
         self.upload = None
         self.worker = None
-        self.setWindowTitle("File Relay")
+        self.setWindowTitle(gs_instance.title("File Relay"))
         self.resize(640, 520)
 
         # --- uplink ---

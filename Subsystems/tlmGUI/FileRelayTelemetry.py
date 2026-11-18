@@ -25,6 +25,7 @@ from PyQt5.QtWidgets import (QApplication, QDialog, QFileDialog, QGridLayout, QG
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib_sdls"))
 import file_relay  # noqa: E402
+import gs_instance  # noqa: E402
 import file_rx  # noqa: E402
 
 DEFAULT_OUT = Path.home() / "gs_received"
@@ -57,7 +58,7 @@ class TlmReceiver(QThread):
         self.runs = True
         self.context = zmq.Context()
         self.subscriber = self.context.socket(zmq.SUB)
-        self.subscriber.connect("ipc:///tmp/GroundSystem")
+        self.subscriber.connect(gs_instance.ipc_address())
         for topic in topics:
             self.subscriber.setsockopt_string(zmq.SUBSCRIBE, topic)
 
@@ -76,7 +77,7 @@ class FileRelayTelemetry(QDialog):
         self.transmit = None  # last relay status
         self.status_count = 0
         self.segment_counts = {file_rx.TYPE_START: 0, file_rx.TYPE_DATA: 0, file_rx.TYPE_END: 0}
-        self.setWindowTitle("File Relay")
+        self.setWindowTitle(gs_instance.title("File Relay"))
         self.resize(640, 720)
 
         # --- Transmit (0x08C2) ---
