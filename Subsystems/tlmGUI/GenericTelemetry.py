@@ -80,7 +80,8 @@ class SubsystemTelemetry(QDialog, UiGenerictelemetrydialog):
                 elif tlm_item_display_type[tlm_index] == 'Enm':
                     value_field.setText(tlm_item_enum[tlm_index][int(tlm_field[0])])
                 elif tlm_item_display_type[tlm_index] == 'Str':
-                    value_field.setText(tlm_field[0].decode('utf-8', 'ignore'))
+                    # C char[] fields are NUL-padded: show the text up to the first NUL
+                    value_field.setText(tlm_field[0].split(b'\0', 1)[0].decode('utf-8', 'ignore'))
                 label_field.setText(tlm_item_desc[tlm_index])
             else:
                 print("ERROR: Can't unpack buffer of length", len(tlm_field2))
