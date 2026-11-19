@@ -3,8 +3,10 @@
 
     Transmit  relay status 0x08C2: how the uplinked file is doing on board (state, bytes,
               CRC check, missing ranges the uplink must send again)
-    Receive   relay segments 0x08C3 with this station's DestTag: the file being sent down,
-              saved to the output folder (lib_sdls/file_rx.FileReceiver)
+    Receive   file segments with this station's DestTag: the file being sent down, saved to
+              the output folder (lib_sdls/file_rx.FileReceiver)
+                0x08C3  relay downlink, DestTag from the relay START
+                0x08C0  downlink asked with DL_START, always DestTag 0
 
 Opened from the Telemetry System main page ("File"). Packets come from RoutingService
 over zmq, already joined across TM frames. The display writes a small state file
@@ -33,12 +35,13 @@ MAX_GAPS_SHOWN = 32
 
 
 def subscriptions(sub):
-    """zmq topics for 0x08C2 and 0x08C3 from the --sub the Telemetry System passes
+    """zmq topics for 0x08C2, 0x08C0 and 0x08C3 from the --sub the Telemetry System passes
     (GroundSystem[.<spacecraft>.TelemetryPackets].0x8c2)."""
     base = sub.rsplit(".", 1)[0] if sub and sub.count(".") >= 1 else "GroundSystem"
     if base == "GroundSystem":
         base = "GroundSystem.Spacecraft1.TelemetryPackets"
-    return [f"{base}.{hex(file_rx.FILE_RELAY_STATUS_TLM_MID)}", f"{base}.{hex(file_rx.FILE_RELAY_SEG_TLM_MID)}"]
+    mids = (file_rx.FILE_RELAY_STATUS_TLM_MID,) + file_rx.SEGMENT_MIDS
+    return [f"{base}.{hex(mid)}" for mid in mids]
 
 
 def format_gaps(gaps, limit=MAX_GAPS_SHOWN):
@@ -103,11 +106,12 @@ class FileRelayTelemetry(QDialog):
         tx_box = QGroupBox(f"Transmit: relay status ({hex(file_rx.FILE_RELAY_STATUS_TLM_MID)})")
         tx_box.setLayout(tx)
 
-        # --- Receive (0x08C3) ---
+        # --- Receive (0x08C0, 0x08C3) ---
         self.spin_tag = QSpinBox()
         self.spin_tag.setRange(0, 255)
         self.spin_tag.setValue(dest_tag)
-        self.spin_tag.setToolTip("Keep only segments for this DestTag")
+        self.spin_tag.setToolTip("Keep only segments for this DestTag "
+                                 "(0: the file asked with DL_START, on 0x08C0)")
         self.spin_tag.valueChanged.connect(self._set_tag)
         self.edit_out = QLineEdit(str(out_dir))
         self.btn_out = QPushButton("Browse...")
@@ -139,7 +143,7 @@ class FileRelayTelemetry(QDialog):
                                               ("Segments", self.rx_segments)), start=2):
             rx.addWidget(QLabel(name), row, 0)
             rx.addWidget(widget, row, 1)
-        rx_box = QGroupBox(f"Receive: relay segments ({hex(file_rx.FILE_RELAY_SEG_TLM_MID)})")
+        rx_box = QGroupBox(f"Receive: file segments ({', '.join(hex(m) for m in file_rx.SEGMENT_MIDS)})")
         rx_box.setLayout(rx)
 
         self.btn_close = QPushButton("Close")
@@ -154,7 +158,8 @@ class FileRelayTelemetry(QDialog):
         layout.addWidget(rx_box)
         layout.addLayout(bottom)
 
-        self.receiver = file_rx.FileReceiver(out_dir, dest_tag=dest_tag, mids=(file_rx.FILE_RELAY_SEG_TLM_MID,))
+        self.receiver = file_rx.FileReceiver(out_dir, dest_tag=dest_tag, mids=file_rx.SEGMENT_MIDS)
+        self.rx_mid = None  # MID of the file being received
         self._show_receive()
         self._write_state()
 
@@ -187,12 +192,14 @@ class FileRelayTelemetry(QDialog):
             self.status_count += 1
             self._show_transmit()
             self._write_state()
-        elif mid == file_rx.FILE_RELAY_SEG_TLM_MID:
+        elif mid in file_rx.SEGMENT_MIDS:
             if self.receiver.state != file_rx.RECEIVING:  # a new file goes to the folder shown now
                 self.receiver.out_dir = Path(self.edit_out.text().strip() or DEFAULT_OUT)
             seg = self.receiver.handle_packet(packet)
             if seg is None:
                 return
+            if seg.type == file_rx.TYPE_START:
+                self.rx_mid = seg.mid
             self.segment_counts[seg.type] = self.segment_counts.get(seg.type, 0) + 1
             self._show_receive()
             self._write_state()
@@ -230,7 +237,9 @@ class FileRelayTelemetry(QDialog):
         if state == file_rx.COMPLETE and not r.verified:
             state += " (END not received: CRC not checked)"
         self.rx_state.setText(state)
-        self.rx_file.setText(f"{r.name} ({r.size} B)")
+        source = {file_rx.FILE_DL_SEG_TLM_MID: "downlink", file_rx.FILE_RELAY_SEG_TLM_MID: "relay"}
+        via = f", {source[self.rx_mid]} {hex(self.rx_mid)}" if self.rx_mid in source else ""
+        self.rx_file.setText(f"{r.name} ({r.size} B{via})")
         self.rx_bar.setMaximum(max(r.size, 1))
         self.rx_bar.setValue(r.received)
         self.rx_bytes.setText(f"{r.received} / {r.size} B")

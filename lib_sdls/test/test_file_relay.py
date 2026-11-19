@@ -473,12 +473,33 @@ class TelemetryWindowTest(WindowBase):
         self.page.handle_packet(file_segments("x.bin", b"abc", dest_tag=2)[0])
         self.assertEqual(self.page.receiver.name, "gap.bin")
 
+    def test_receive_saves_a_downlink_file_with_dest_tag_0(self):
+        down = file_segments("asked.bin", self.content, dest_tag=0, mid=file_rx.FILE_DL_SEG_TLM_MID)
+        for packet in down:  # DestTag 2 set: the 0x08C0 file is not ours
+            self.page.handle_packet(packet)
+        self.assertEqual(self.page.rx_state.text(), "waiting for START")
+        self.page.spin_tag.setValue(0)
+        for packet in down:
+            self.page.handle_packet(packet)
+        self.assertEqual((self.out / "asked.bin").read_bytes(), self.content)
+        self.assertEqual(self.page.rx_state.text(), "COMPLETE")
+        self.assertEqual(self.page.rx_file.text(), "asked.bin (20000 B, downlink 0x8c0)")
+        rx = json.loads(self.state.read_text())["receive"]
+        self.assertEqual((rx["verified"], rx["file_crc"], rx["dest_tag"]), (True, zlib.crc32(self.content), 0))
+        # a relay file afterwards still goes by its DestTag
+        self.page.spin_tag.setValue(2)
+        for packet in file_segments("relayed.bin", b"r" * 3000, dest_tag=2):
+            self.page.handle_packet(packet)
+        self.assertEqual(self.page.rx_file.text(), "relayed.bin (3000 B, relay 0x8c3)")
+        self.assertEqual((self.out / "relayed.bin").read_bytes(), b"r" * 3000)
+
     def test_subscriptions_from_the_telemetry_system(self):
         sub = self.mod.subscriptions
         self.assertEqual(sub("GroundSystem.0x8c2"),
                          ["GroundSystem.Spacecraft1.TelemetryPackets.0x8c2",
+                          "GroundSystem.Spacecraft1.TelemetryPackets.0x8c0",
                           "GroundSystem.Spacecraft1.TelemetryPackets.0x8c3"])
-        self.assertEqual(sub("GroundSystem.Spacecraft2.TelemetryPackets.0x8c2")[1],
+        self.assertEqual(sub("GroundSystem.Spacecraft2.TelemetryPackets.0x8c2")[2],
                          "GroundSystem.Spacecraft2.TelemetryPackets.0x8c3")
 
     def test_listed_in_the_telemetry_pages(self):
