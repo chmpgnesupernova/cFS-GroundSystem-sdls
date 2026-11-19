@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""File Relay commands: one window, uplink buttons on top, downlink buttons below.
+"""File commands: one window, uplink buttons on top, downlink buttons below.
 
     Uplink   OUTPUT_ENABLE  START  DATA  END  STATUS  CANCEL        (send a file to relay)
-    Downlink ADD_DEST  DONE  REMOVE_DEST  RESEND                      (get a relayed file)
+    Downlink [file on board] DL_START                                 (ask for a file on board)
+             ADD_DEST  DONE  REMOVE_DEST  RESEND                      (get a relayed or asked file)
 
-Opened from the Command System main page ("File Relay"). Every command goes through the
+Opened from the Command System main page ("File"). Every command goes through the
 same SDLP path as the other pages (sdlp_link.encapsulate_tc -> UDP --host:--port).
 DATA sends every chunk of the chosen file, or only the missing ones when the latest relay
-status (File Relay telemetry window) lists gaps for it. DONE and RESEND take the CRC and
+status (File telemetry window) lists gaps for it. DONE and RESEND take the CRC and
 the missing ranges of the file the telemetry window is receiving.
 
     python3 FileRelayCommand.py --host=127.0.0.1 --port=1234
@@ -56,7 +57,7 @@ class FileRelayCommand(QDialog):
         self.sender = sender or file_relay.TcSender(host, port)
         self.upload = None
         self.worker = None
-        self.setWindowTitle(gs_instance.title("File Relay"))
+        self.setWindowTitle(gs_instance.title("File"))
         self.resize(640, 520)
 
         # --- uplink ---
@@ -119,8 +120,14 @@ class FileRelayCommand(QDialog):
         self.lbl_received = QLabel("")
         self.lbl_missing = QLabel("")
         self.btn_refresh = QPushButton("Refresh")
-        self.btn_refresh.setToolTip("Read the received file's CRC and missing ranges from the File Relay telemetry")
+        self.btn_refresh.setToolTip("Read the received file's CRC and missing ranges from the File telemetry")
         self.btn_refresh.clicked.connect(self.refresh)
+
+        self.edit_dl_file = QLineEdit()
+        self.edit_dl_file.setPlaceholderText("file on board, full path (e.g. /cf/relay/x.bin)")
+        self.btn_dl_start = QPushButton("DL_START")
+        self.btn_dl_start.setToolTip("FILE_DL START: the satellite sends this file down (0x08C0, DestTag 0)")
+        self.btn_dl_start.clicked.connect(self.dl_start)
 
         self.btn_add_dest = QPushButton("ADD_DEST")
         self.btn_done = QPushButton("DONE")
@@ -143,12 +150,17 @@ class FileRelayCommand(QDialog):
         down.addWidget(self.btn_refresh, 1, 2)
         down.addWidget(self.lbl_received, 2, 0, 1, 3)
         down.addWidget(self.lbl_missing, 3, 0, 1, 3)
+        dl_row = QHBoxLayout()
+        dl_row.addWidget(QLabel("Filename"))
+        dl_row.addWidget(self.edit_dl_file, 1)
+        dl_row.addWidget(self.btn_dl_start)
         down_buttons = QHBoxLayout()
         for button in (self.btn_add_dest, self.btn_done, self.btn_remove_dest, self.btn_resend):
             down_buttons.addWidget(button)
-        down_box = QGroupBox("Downlink: get a relayed file")
+        down_box = QGroupBox("Downlink: get a relayed or asked file")
         down_layout = QVBoxLayout(down_box)
         down_layout.addLayout(down)
+        down_layout.addLayout(dl_row)
         down_layout.addLayout(down_buttons)
 
         # --- status line, close ---
@@ -170,7 +182,7 @@ class FileRelayCommand(QDialog):
 
         # Enter in a field must not press a button.
         for button in (self.btn_browse, self.btn_output_enable, self.btn_start, self.btn_data, self.btn_end,
-                       self.btn_status, self.btn_cancel, self.btn_refresh, self.btn_add_dest, self.btn_done,
+                       self.btn_status, self.btn_cancel, self.btn_refresh, self.btn_dl_start, self.btn_add_dest, self.btn_done,
                        self.btn_remove_dest, self.btn_resend, self.btn_close):
             button.setAutoDefault(False)
         self.missing = []
@@ -263,7 +275,7 @@ class FileRelayCommand(QDialog):
         """The received file's CRC and missing ranges, from the telemetry window."""
         rx = (file_relay.read_state() or {}).get("receive")
         if not rx:
-            self.lbl_received.setText("Received: nothing yet (File Relay telemetry window)")
+            self.lbl_received.setText("Received: nothing yet (File telemetry window)")
             self.lbl_missing.setText("")
             self.missing = []
             return
@@ -283,6 +295,15 @@ class FileRelayCommand(QDialog):
             return False
         name = "ADD_DEST" if add else "REMOVE_DEST"
         return self._send(packet, f"{name} {self._my_ip()}:{self.spin_tm_port.value()}")
+
+    def dl_start(self):
+        path = self.edit_dl_file.text().strip()
+        try:
+            packet = file_rx.start_command(path)
+        except ValueError as exc:
+            self._status(str(exc), ok=False)
+            return False
+        return self._send(packet, f"DL_START {path}")
 
     def done_(self):
         self.refresh()
@@ -318,7 +339,7 @@ class FileRelayCommand(QDialog):
 
 
 def parse_args(argv=None):
-    parser = argparse.ArgumentParser(description="File Relay commands")
+    parser = argparse.ArgumentParser(description="File commands")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=1234)
     args, _ = parser.parse_known_args(argv)

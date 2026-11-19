@@ -10,7 +10,7 @@ Uplink (FILE_DL relay engine, MID 0x18C3, apps/file_dl/README.md 2.3), all big e
 plus TO_LAB 0x1880 CC 6 OUTPUT_ENABLE dest_IP[16] (main TM destination, port 1235).
 The receiving side's commands (ADD_DEST, DONE, REMOVE_DEST, RESEND) are in file_rx.py.
 
-State file (JSON, written by the File Relay telemetry window, read by the command window):
+State file (JSON, written by the File telemetry window, read by the command window):
     {"time": <unix s>, "transmit": <file_rx.parse_status dict or null>,
      "receive": {"name", "size", "received", "missing": [[off, len], ...], "end_crc",
                  "file_crc", "state", "verified", "path", "dest_tag"} or null}

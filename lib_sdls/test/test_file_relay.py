@@ -1,4 +1,4 @@
-"""File Relay windows: Subsystems/cmdGui/FileRelayCommand.py (uplink buttons on top,
+"""File windows ("File" in the Command and Telemetry Systems): Subsystems/cmdGui/FileRelayCommand.py (uplink buttons on top,
 downlink buttons below) and Subsystems/tlmGUI/FileRelayTelemetry.py (Transmit above
 Receive), with lib_sdls/file_relay.py behind them.
 
@@ -221,6 +221,17 @@ class CommandBytesTest(unittest.TestCase):
             with self.subTest(bad=bad[0]), self.assertRaises(ValueError):
                 file_relay.data_command(*bad)
 
+    def test_downlink_start(self):
+        p = file_rx.start_command("/cf/relay/nasa2.jpg")
+        self.assertEqual(len(p), 72)  # README 2.2: downlink START is 72 B
+        self.assertEqual((p[:2], p[6]), (b"\x18\xc0", 1))
+        self.assertEqual(p[8:], b"/cf/relay/nasa2.jpg".ljust(64, b"\0"))
+        self.assertEqual(self.xor(p), 0xFF)
+        self.assertEqual(file_rx.start_command("/" + "a" * 62)[8:71], b"/" + b"a" * 62)  # 63 B + NUL
+        for bad in ("", "x.bin", "/" + "a" * 63):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                file_rx.start_command(bad)
+
     def test_output_enable(self):
         p = file_relay.output_enable_command("10.0.0.5")
         self.assertEqual((len(p), p[:2], p[6], p[8:]), (24, b"\x18\x80", 6, b"10.0.0.5".ljust(16, b"\0")))
@@ -380,11 +391,36 @@ class CommandWindowTest(WindowBase):
                                    file_rx.done_command(0x1234), file_rx.remove_dest_command("10.0.0.8", 1245)])
         self.assertEqual(page.edit_crc.text(), "00001234")
 
+    def test_dl_start_row_above_the_downlink_buttons(self):
+        page = self.page
+        self.assertEqual(page.btn_dl_start.text(), "DL_START")
+        source = CMD_PAGE.read_text()
+        self.assertIn('self.setWindowTitle(gs_instance.title("File"))', source)
+        self.assertIn('self.setWindowTitle(gs_instance.title("File"))', TLM_PAGE.read_text())
+        # its own row, between the CRC/Refresh grid and the ADD_DEST .. RESEND row
+        self.assertLess(source.index("down_layout.addLayout(down)"), source.index("down_layout.addLayout(dl_row)"))
+        self.assertLess(source.index("down_layout.addLayout(dl_row)"),
+                        source.index("down_layout.addLayout(down_buttons)"))
+        self.assertNotIn("self.btn_dl_start", source[source.index("for button in (self.btn_add_dest"):
+                                                         source.index("down_box = QGroupBox")])
+
+    def test_dl_start_sends_the_file_name(self):
+        page = self.page
+        page.edit_dl_file.setText("  /cf/msn_param.txt ")
+        page.btn_dl_start.click()
+        self.assertEqual(self.sent(), [file_rx.start_command("/cf/msn_param.txt")])
+        self.assertIn("DL_START /cf/msn_param.txt sent", page.lbl_status.text())
+        page.edit_dl_file.setText("msn_param.txt")  # not a full path: refused before sending
+        page.btn_dl_start.click()
+        self.assertEqual(self.sent(), [])
+        self.assertIn("full path", page.lbl_status.text())
+
     def test_command_system_opens_the_window(self):
         with qt_stubs():
             sys.modules.pop("CommandSystem", None)
             source = (REPO / "Subsystems" / "cmdGui" / "CommandSystem.py").read_text()
-        self.assertIn('self._open_tool("FileRelayCommand.py", "File Relay")', source)
+        self.assertIn('self._open_tool("FileRelayCommand.py", "File")', source)
+        self.assertIn('QPushButton("File", self.layout_widget_3)', source)
         self.assertIn("self.btn_file_relay", source)
 
 
@@ -447,7 +483,8 @@ class TelemetryWindowTest(WindowBase):
 
     def test_listed_in_the_telemetry_pages(self):
         rows = (REPO / "Subsystems" / "tlmGUI" / "telemetry-pages.txt").read_text()
-        self.assertIn("File Relay,                FileRelayTelemetry.py,   0x8C2,   null", rows)
+        self.assertIn("File,                      FileRelayTelemetry.py,   0x8C2,   null", rows)
+        self.assertNotIn("File Relay", rows)
 
 
 class TogetherTest(WindowBase):

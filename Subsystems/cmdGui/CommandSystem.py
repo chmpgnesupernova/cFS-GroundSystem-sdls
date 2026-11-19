@@ -77,9 +77,9 @@ class CommandSystem(QDialog, UiCommandsystemdialog):
             "Type every SPP field in hex and send it to the TC target IP")
         self.btn_handcraft.setAutoDefault(False)
         self.btn_handcraft.clicked.connect(self.open_handcraft)
-        self.btn_file_relay = QPushButton("File Relay", self.layout_widget_3)
+        self.btn_file_relay = QPushButton("File", self.layout_widget_3)
         self.btn_file_relay.setToolTip(
-            "Send a file to relay, and get a relayed file (TC target IP)")
+            "Send a file to relay, ask for a file on board, get a file (TC target IP)")
         self.btn_file_relay.setAutoDefault(False)
         self.btn_file_relay.clicked.connect(self.open_file_relay)
         for pos, widget in enumerate(
@@ -100,10 +100,10 @@ class CommandSystem(QDialog, UiCommandsystemdialog):
         return self._open_tool("HandcraftCommand.py", "Handcraft TC")
 
     #
-    # 'File Relay' button: uplink and downlink commands of the file relay
+    # 'File' button: file relay uplink, downlink START and the downlink commands
     #
     def open_file_relay(self):
-        return self._open_tool("FileRelayCommand.py", "File Relay")
+        return self._open_tool("FileRelayCommand.py", "File")
 
     def _open_tool(self, script_name, title):
         host = self.target_ip or "127.0.0.1"

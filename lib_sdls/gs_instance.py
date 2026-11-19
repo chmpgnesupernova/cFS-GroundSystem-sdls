@@ -10,12 +10,12 @@ Every per-instance resource follows the port, so two instances never share one:
     zmq (RoutingService -> GUI) ipc:///tmp/GroundSystem            ipc:///tmp/GroundSystem-<port>
     header offsets              /tmp/OffsetData                    /tmp/OffsetData-<port>
     SDLP log  ($SDLP_LOG)       /tmp/sdlp_link.log                 /tmp/sdlp_link-<port>.log
-    File Relay state            /tmp/gs_file_relay_<uid>.json      /tmp/gs_file_relay_<uid>-<port>.json
+    File window state           /tmp/gs_file_relay_<uid>.json      /tmp/gs_file_relay_<uid>-<port>.json
     SA DB  ($SDLS_SA_DB, SDLS)  /sdls_sa_db                        /sdls_sa_db-<port>
 
 GroundSystem.py calls apply(port) before anything else; the choice reaches every window
 it opens through the environment ($GS_INSTANCE and the variables above), so the command
-and telemetry windows, MiniCmdUtil and the File Relay windows all use the same instance.
+and telemetry windows, MiniCmdUtil and the File windows all use the same instance.
 A variable already set by hand ($SDLP_LOG, ...) is kept.
 """
 
