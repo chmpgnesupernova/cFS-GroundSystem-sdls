@@ -65,9 +65,11 @@ TYPE_START, TYPE_DATA, TYPE_END = 0, 1, 2
 TYPE_NAMES = {TYPE_START: "START", TYPE_DATA: "DATA", TYPE_END: "END"}
 
 FILE_DL_CMD_MID = 0x18C0
+FILE_DL_START_CC = 1
 FILE_DL_RESEND_CC = 2
 FILE_DL_DONE_CC = 3
 FILE_DL_MAX_RESENDS = 64  # ranges the satellite can queue
+FILE_DL_MAX_NAME = 64  # Filename[] of downlink START, NUL included
 
 TO_LAB_CMD_MID = 0x1880
 TO_ADD_DEST_CC = 7
@@ -152,6 +154,16 @@ def command(mid, cc, payload=b"", seq=0):
         checksum ^= byte
     packet[7] = checksum
     return bytes(packet)
+
+
+def start_command(path):
+    """Downlink START (0x18C0 CC1, 72 B): the satellite sends this file on 0x08C0 with DestTag 0."""
+    raw = path.strip().encode()
+    if not raw or len(raw) >= FILE_DL_MAX_NAME:
+        raise ValueError(f"file name on board must be 1 to {FILE_DL_MAX_NAME - 1} bytes: {path!r}")
+    if not raw.startswith(b"/"):
+        raise ValueError(f"file name on board must be a full path such as /cf/x.bin: {path!r}")
+    return command(FILE_DL_CMD_MID, FILE_DL_START_CC, raw.ljust(FILE_DL_MAX_NAME, b"\0"))
 
 
 def done_command(crc32):

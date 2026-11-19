@@ -64,7 +64,7 @@ class InstanceNamesTest(unittest.TestCase):
             self.assertEqual(os.environ["SDLP_LOG"], "/tmp/sdlp_link-1245.log")
             self.assertTrue(os.environ["GS_FILE_RELAY_STATE"].endswith(f"gs_file_relay_{os.getuid()}-1245.json"))
             self.assertEqual(os.environ["SDLS_SA_DB"], "/sdls_sa_db-1245")
-            self.assertEqual(gs_instance.title("File Relay"), "File Relay [TM 1245]")
+            self.assertEqual(gs_instance.title("File"), "File [TM 1245]")
 
     def test_a_path_set_by_hand_is_kept(self):
         with clean_env(SDLP_LOG="/tmp/mine.log"):

@@ -11,7 +11,7 @@
 #  Note(2): Remove any blank lines from the end of the file
 #
 Event Messages,            EventMessage.py,         0x808,   null
-File Relay,                FileRelayTelemetry.py,   0x8C2,   null
+File,                      FileRelayTelemetry.py,   0x8C2,   null
 MSN HK Tlm,                GenericTelemetry.py,     0x8D0,   msn-hk-tlm.txt
 MSN TEMP Tlm,              GenericTelemetry.py,     0x8D1,   msn-temp-tlm.txt
 MSN DIAG Tlm,              GenericTelemetry.py,     0x8D2,   msn-diag-tlm.txt

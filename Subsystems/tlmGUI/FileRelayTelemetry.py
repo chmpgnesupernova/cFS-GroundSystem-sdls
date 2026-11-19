@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""File Relay telemetry: one display, Transmit above Receive.
+"""File telemetry: one display, Transmit above Receive.
 
     Transmit  relay status 0x08C2: how the uplinked file is doing on board (state, bytes,
               CRC check, missing ranges the uplink must send again)
     Receive   relay segments 0x08C3 with this station's DestTag: the file being sent down,
               saved to the output folder (lib_sdls/file_rx.FileReceiver)
 
-Opened from the Telemetry System main page ("File Relay"). Packets come from RoutingService
+Opened from the Telemetry System main page ("File"). Packets come from RoutingService
 over zmq, already joined across TM frames. The display writes a small state file
-(lib_sdls/file_relay.state_path) that the File Relay command window reads for DATA (gaps),
+(lib_sdls/file_relay.state_path) that the File command window reads for DATA (gaps),
 DONE (CRC) and RESEND (missing ranges).
 """
 
@@ -77,7 +77,7 @@ class FileRelayTelemetry(QDialog):
         self.transmit = None  # last relay status
         self.status_count = 0
         self.segment_counts = {file_rx.TYPE_START: 0, file_rx.TYPE_DATA: 0, file_rx.TYPE_END: 0}
-        self.setWindowTitle(gs_instance.title("File Relay"))
+        self.setWindowTitle(gs_instance.title("File"))
         self.resize(640, 720)
 
         # --- Transmit (0x08C2) ---
@@ -256,7 +256,7 @@ class FileRelayTelemetry(QDialog):
             file_relay.write_state({"time": time.time(), "transmit": self.transmit,
                                     "receive": file_relay.receive_state(self.receiver)}, self.state_path)
         except OSError as exc:
-            print(f"File Relay: cannot write {self.state_path or file_relay.state_path()}: {exc}")
+            print(f"File: cannot write {self.state_path or file_relay.state_path()}: {exc}")
 
     def closeEvent(self, event):  # noqa: N802 - Qt name
         if self.thread is not None:
@@ -267,7 +267,7 @@ class FileRelayTelemetry(QDialog):
 
 
 def parse_args(argv=None):
-    parser = argparse.ArgumentParser(description="File Relay telemetry")
+    parser = argparse.ArgumentParser(description="File telemetry")
     parser.add_argument("--sub", default="GroundSystem")
     parser.add_argument("--out", default=os.environ.get("GS_FILE_RELAY_OUT", str(DEFAULT_OUT)))
     parser.add_argument("--tag", type=int, default=2)
