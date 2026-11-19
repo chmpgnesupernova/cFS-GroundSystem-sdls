@@ -171,11 +171,12 @@ class MsnTelemetryPageTest(unittest.TestCase):
             "Essential apps running": "PASS", "Fail Count": "1", "Run Count": "4"})
 
     def test_app_status(self):
-        payload = name20("SAMPLE_APP") + struct.pack("<BB2xIIII", 1, 2, 50, 16384, 321, 0)
+        # bytes after the first NUL are not part of the name (C strncpy may leave old text there)
+        payload = (b"SAMPLE_APP\0junk".ljust(20, b"\0")
+                   + struct.pack("<BB2xIIII", 1, 2, 50, 16384, 321, 0))
         table = self.show("MSN APP_STATUS Tlm", 0x08D3, payload)
-        self.assertEqual(table["App Name"].rstrip("\0"), "SAMPLE_APP")
-        del table["App Name"]
         self.assertEqual(table, {
+            "App Name": "SAMPLE_APP",  # NUL padding is not shown
             "Running": "YES", "Startup": "DISABLED", "Priority": "50", "Stack Size": "16384",
             "Execution Counter": "321", "Child Tasks": "0"})
 
